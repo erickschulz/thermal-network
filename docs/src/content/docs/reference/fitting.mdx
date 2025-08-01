@@ -1,0 +1,113 @@
+---
+title: Model Fitting
+description: Functions for fitting Foster network models to impedance data.
+---
+import { Steps } from '@astrojs/starlight/components';
+
+This module uses the JAX library for high-performance, gradient-based optimization to fit the parameters of a `FosterNetwork` to thermal impedance data.
+
+### `fit_foster_network()`
+
+```python
+fit_foster_network(
+  time_data,
+  impedance_data,
+  n_layers,
+  config=None,
+  initialization_type='exponential',
+  random_seed=0
+)
+```
+
+Fits an N-layer Foster network to thermal impedance data.
+
+-   **`time_data`**: `array-like` - Array of time points.
+-   **`impedance_data`**: `array-like` - Array of corresponding thermal impedance values.
+-   **`n_layers`**: `int` - The number of RC layers to fit.
+-   **`config`**: `OptimizationConfig`, optional - Configuration for the optimization process (e.g., optimizer, learning rate, tolerances). If `None`, default settings are used.
+-   **`initialization_type`**: `str` - Method for generating the initial guess ('uniform' or 'exponential').
+-   **`random_seed`**: `int` - Seed for randomizing the initial guess.
+-   **Returns**: `FosterModelResult` - An object containing the fitted `FosterNetwork` and metadata about the optimization.
+
+### `fit_optimal_foster_network()`
+
+```python
+fit_optimal_foster_network(
+  time_data,
+  impedance_data,
+  max_layers=5,
+  selection_criterion='bic',
+  config=None,
+  initialization_type='exponential',
+  random_seed=0
+)
+```
+
+Fits models with 1 to `max_layers` and selects the best one using a model selection criterion (AIC or BIC). This is useful for automatically determining the required complexity of the model.
+
+-   **`time_data`**: `array-like` - Array of time points.
+-   **`impedance_data`**: `array-like` - Array of corresponding thermal impedance values.
+-   **`max_layers`**: `int` - The maximum number of layers to test.
+-   **`selection_criterion`**: `str` - `'aic'` or `'bic'`. The criterion used for model selection.
+-   **`config`**: `OptimizationConfig`, optional - Configuration for the optimization process.
+-   **`initialization_type`**: `str` - Method for generating the initial guess ('uniform' or 'exponential').
+-   **`random_seed`**: `int` - Seed for randomizing the initial guess.
+-   **Returns**: `EvaluatedFosterModelResult` - The best model found, including its selection criteria scores.
+
+### `OptimizationConfig`
+A data class for configuring the fitting process.
+
+-   **`optimizer`**: `str` - `'lbfgs'` or `'adam'`.
+-   **`n_steps`**: `int` - Maximum number of optimization steps.
+-   **`learning_rate`**: `float` - Learning rate for the Adam optimizer.
+-   **`loss_tol`**: `float`- Convergence tolerance for the change in loss value.
+-   **`gradient_tol`**: `float` - Convergence tolerance for the gradient norm.
+-   **`params_rtol`**: `float` - Relative tolerance for parameter change.
+-   **`params_atol`**: `float` - Absolute tolerance for parameter change.
+-   **`randomize_guess_strength`**: `float` - Stddev of multiplicative noise for
+                                    randomizing the initial guess. 0 implies
+                                    a deterministic initial guess.
+
+#### Example: Automatic Model Selection
+
+<Steps>
+1.  **Generate Synthetic Data**
+
+    First, we create a "true" 3-layer network and generate noisy impedance data from it, simulating a real-world measurement.
+
+    ```python
+    import numpy as np
+    from thermal_network.networks import FosterNetwork
+    from thermal_network.impedance import foster_impedance_time_domain
+
+    # Define a true 3-layer network
+    true_network = FosterNetwork(r_values=[0.2, 0.8, 0.5], c_values=[15.0, 1.0, 4.0])
+    time_vec = np.logspace(-1, 2, 200)
+    true_impedance = foster_impedance_time_domain(true_network, time_vec)
+
+    # Add noise
+    np.random.seed(42)
+    noise_level = 0.015 * np.max(true_impedance)
+    noisy_impedance = true_impedance + noise_level * np.random.randn(true_impedance.shape[0])
+    ```
+
+2.  **Find the Optimal Model**
+
+    We use `fit_optimal_foster_network` to test models from 1 to 5 layers and let it choose the best one based on the Bayesian Information Criterion (BIC).
+
+    ```python
+    from thermal_network.fitting import fit_optimal_foster_network
+
+    # Find the optimal model up to 5 layers
+    optimal_model = fit_optimal_foster_network(
+        time_vec,
+        noisy_impedance,
+        max_layers=5,
+        selection_criterion='bic',
+    )
+
+    print(f"Optimal model found with {optimal_model.n_layers} layers.")
+    print(f"BIC Score: {optimal_model.selection_criteria['bic']:.2f}")
+    print("Fitted Network:", optimal_model.network)
+    ```
+</Steps>

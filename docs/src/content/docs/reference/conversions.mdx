@@ -1,0 +1,47 @@
+---
+title: Network Conversions
+description: Functions for converting between Cauer and Foster network models.
+---
+
+This module provides functions to convert between the two network topologies. These conversions are mathematically equivalent and preserve the network's impedance characteristics.
+
+### `cauer_to_foster(cauer_network)`
+Converts a `CauerNetwork` to an equivalent `FosterNetwork`.
+
+The conversion uses symbolic partial fraction expansion of the Cauer network's impedance function $Z(s)$ to find the poles and residues, which map directly to the R and C values of the Foster network.
+
+-   **`cauer_network`**: `CauerNetwork` - The Cauer network to convert.
+-   **Returns**: `FosterNetwork` - The equivalent Foster network.
+
+### `foster_to_cauer(foster_network)`
+Converts a `FosterNetwork` to an equivalent `CauerNetwork`.
+
+The conversion uses symbolic continued fraction expansion (Cauer II form) on the Foster network's impedance function $Z(s)$.
+
+-   **`foster_network`**: `FosterNetwork` - The Foster network to convert.
+-   **Returns**: `CauerNetwork` - The equivalent Cauer network.
+
+#### Round-Trip Conversion Example
+
+A robust way to test the conversions is to perform a round-trip (e.g., Cauer -> Foster -> Cauer) and verify that the final parameters match the original ones.
+
+```python
+import numpy as np
+from thermal_network.networks import CauerNetwork, FosterNetwork
+from thermal_network.conversions import cauer_to_foster, foster_to_cauer
+
+# 1. Define an original Cauer network
+original_cauer = CauerNetwork(r_values=[0.1, 0.5, 1.2], c_values=[0.3, 0.8, 2.0])
+
+# 2. Convert to Foster and back to Cauer
+intermediate_foster = cauer_to_foster(original_cauer)
+final_cauer = foster_to_cauer(intermediate_foster)
+
+# 3. Check if the result is identical to the original
+print(f"Original Cauer R: {original_cauer.r}")
+print(f"Final Cauer R:    {np.round(final_cauer.r, 6)}")
+assert np.allclose(original_cauer.r, final_cauer.r)
+
+print(f"Original Cauer C: {original_cauer.c}")
+print(f"Final Cauer C:    {np.round(final_cauer.c, 6)}")
+assert np.allclose(original_cauer.c, final_cauer.c)

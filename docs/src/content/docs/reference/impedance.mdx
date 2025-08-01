@@ -1,0 +1,90 @@
+---
+title: Impedance Calculation
+description: Functions for calculating network impedance in the time and frequency domains.
+---
+import { Tabs } from '@astrojs/starlight/components';
+import { TabItem } from '@astrojs/starlight/components';
+
+These functions calculate the impedance of a given network model. These are convinience functions for validation and plotting.
+
+## `foster_impedance_time_domain()`
+```python
+foster_impedance_time_domain(network, t_values)
+```
+
+Calculates the time-domain thermal impedance Z<sub>th</sub>(t) for a Foster network, which represents the transient temperature response to a unit power step.
+
+The impedance is calculated as:
+
+**Z<sub>th</sub>(t) = Σ<sub>i</sub> R<sub>i</sub> · (1 - e<sup>-t/τ<sub>i</sub></sup>)**
+
+where τ<sub>i</sub> = R<sub>i</sub> · C<sub>i</sub>.
+
+**Parameters:**
+- `network`: `FosterNetwork` - The Foster network model.
+- `t_values`: `array-like` - An array of time points at which to calculate the impedance.
+- **Returns**: `np.ndarray` - An array of thermal impedance values.
+
+---
+
+## Frequency Domain Impedance Z(s)
+
+For frequency-domain analysis, the impedance Z(s) is calculated at complex frequency points s = jω.
+
+<Tabs>
+<TabItem label="Foster">
+
+### `foster_impedance_freq_domain()`
+```python
+foster_impedance_freq_domain(network, s_values)
+```
+
+Computes the complex impedance for a Foster network as the sum of parallel RC branches:
+
+**Z(s) = Σ<sub>i</sub> R<sub>i</sub> / (1 + s R<sub>i</sub> C<sub>i</sub>)**
+
+**Parameters:**
+- `network`: `FosterNetwork` - The Foster network model.
+- `s_values`: `array-like` - An array of complex frequency points.
+- **Returns**: `np.ndarray` - An array of complex impedance values.
+
+</TabItem>
+<TabItem label="Cauer">
+
+### `cauer_impedance_freq_domain()`
+```python
+cauer_impedance_freq_domain(network, s_values)
+```
+
+Computes the complex impedance for a Cauer network using its continued fraction representation, which reflects the ladder structure of the network.
+
+**Parameters:**
+- `network`: `CauerNetwork` - The Cauer network model.
+- `s_values`: `array-like` - An array of complex frequency points.
+- **Returns**: `np.ndarray` - An array of complex impedance values.
+
+</TabItem>
+</Tabs>
+
+---
+
+## Example
+
+```python
+import numpy as np
+from thermal_network.networks import FosterNetwork
+from thermal_network.impedance import foster_impedance_time_domain, foster_impedance_freq_domain
+
+# Define the network and data points
+net = FosterNetwork(r_values=[0.7, 0.3], c_values=[1.0, 10.0])
+time_data = np.logspace(-1, 2, 5)
+freq_data = np.logspace(-1, 2, 5) * 1j  # s = jw
+
+# Time-domain impedance
+z_time = foster_impedance_time_domain(net, time_data)
+print(f"Time-domain Z(t): {np.round(z_time, 3)}")
+
+# Frequency-domain impedance
+z_freq = foster_impedance_freq_domain(net, freq_data)
+print(f"Frequency-domain |Z(s)|: {np.round(np.abs(z_freq), 3)}")
+```
