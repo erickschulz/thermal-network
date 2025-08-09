@@ -278,7 +278,7 @@ def _run_single_optimization(time_data: jnp.ndarray, z_data: jnp.ndarray, n_laye
                              config: OptimizationConfig, init_type: str, seed: int
                              ) -> FosterModelResult:
     """Runs a single optimization for a fixed number of layers."""
-    # 1. Generate initial guess.
+    # Generate initial guess
     if init_type == 'uniform':
         base_init = _create_uniform_initial_guess(time_data, z_data, n_layers)
     elif init_type == 'exponential':
@@ -286,18 +286,17 @@ def _run_single_optimization(time_data: jnp.ndarray, z_data: jnp.ndarray, n_laye
     else:
         raise ValueError(f"Unknown initialization_type: '{init_type}'")
 
-    # 2. Add optional randomization.
+    # Add optional randomization
     if config.randomize_guess_strength > 0.:
         noise = 1.0 + config.randomize_guess_strength * jax.random.normal(jax.random.PRNGKey(seed), shape=base_init.shape)
         initial_guess = base_init * noise
     else:
         initial_guess = base_init
 
-    # 3. Run optimization.
+    # Run optimization
     r_values, c_values, conv_info = _run_optimization_engine(
         time_data, z_data, initial_guess, n_layers, config, config.optimizer.lower()) # type: ignore
 
-    # 4. Package results.
     if not (jnp.all(jnp.isfinite(r_values)) and jnp.all(jnp.isfinite(c_values))):
         raise RuntimeError(f"Optimization produced invalid parameters (NaN or Inf) for {n_layers} layers.")
 
