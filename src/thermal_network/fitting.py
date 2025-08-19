@@ -3,8 +3,8 @@
 This module provides functions for fitting thermal network models to experimental data.
 
 It leverages JAX for high-performance, gradient-based optimization to determine the
-parameters (resistances and capacitances) of a Foster network that best match
-measured thermal impedance data. The module also includes functionality for automatic
+parameters (resistances and capacitances) of a Foster network that best fit
+thermal impedance data. The module also includes functionality for automatic
 model selection, allowing it to identify the optimal number of RC layers by comparing
 models of different complexities using information criteria like AIC or BIC.
 
@@ -43,8 +43,6 @@ logging.basicConfig(
     level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', force=True)
 logger = logging.getLogger(__name__)
 
-
-# Type Aliases and Constants
 
 # A small value to prevent log(0) and division by zero during optimization.
 MIN_LOG_PARAMETER = 1e-12
@@ -98,14 +96,11 @@ class FosterModelResult:
     """
     Stores the results of a Foster network fitting optimization.
 
-    Inherits from FosterNetwork, so it can be used for impedance calculations
-    or conversions. It also stores metadata about the fitting process.
-
     Attributes:
-        n_layers (int): The number of RC layers in the fitted model.
-        final_loss (float): The final mean squared error of the fit.
-        optimizer_used (str): The name of the optimizer ('lbfgs' or 'adam').
-        convergence_info (Dict[str, Any]): Details about convergence.
+        n_layers: The number of RC layers in the fitted model.
+        final_loss: The final mean squared error of the fit.
+        optimizer_used: The name of the optimizer ('lbfgs' or 'adam').
+        convergence_info: Details about convergence.
     """
     n_layers: int
     final_loss: float
