@@ -2,9 +2,8 @@
 """
 This module provides functions for calculating the impedance of thermal networks.
 
-Following a functional approach, these functions take network data structures
-as input and compute their impedance in either the time or frequency domain.
-This separation of concerns makes the library more modular and easier to test.
+These functions take network data structures as input and compute their impedance
+in either the time or frequency domain.
 """
 
 import numpy as np

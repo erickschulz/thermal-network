@@ -12,7 +12,6 @@ Key Features:
 - Gradient-Based Optimization: Utilizes JAX and Optax for efficient and robust fitting.
 - Automatic Model Selection: Finds the optimal model complexity using AIC/BIC.
 - Customizable Optimization: Allows configuration of the optimization process.
-- Extensible Design**: Can be adapted for different model types and fitting algorithms.
 """
 
 import logging
@@ -26,7 +25,7 @@ import optax
 
 from .networks import FosterNetwork, RCValues
 
-# Public API Definition
+# Public API
 __all__ = [
     'FosterModelResult',
     'EvaluatedFosterModelResult',
@@ -52,14 +51,12 @@ MIN_LOG_PARAMETER = 1e-12
 # A large value to clip parameters and prevent numerical overflow.
 MAX_LOG_PARAMETER = 1e12
 # Default limit for layers in automatic model selection.
-DEFAULT_MAX_LAYERS = 5
+DEFAULT_MAX_LAYERS = 10
 # Supported criteria for automatic model selection.
 SUPPORTED_CRITERIA = {'aic', 'bic'}
 # Default criterion if none is specified.
 DEFAULT_CRITERION = 'bic'
 
-
-# Configuration Classes for Fitting
 
 @dataclass
 class OptimizationConfig:
@@ -82,8 +79,8 @@ class OptimizationConfig:
     n_steps: Optional[int] = None
     learning_rate: float = 1e-2
     loss_tol: float = 1e-12
-    gradient_tol: float = 1e-5
-    params_rtol: float = 1e-5
+    gradient_tol: float = 1e-6
+    params_rtol: float = 1e-6
     params_atol: float = 1e-6
     randomize_guess_strength: float = 0.
 
@@ -95,8 +92,6 @@ class OptimizationConfig:
             else:
                 self.n_steps = 2000  # L-BFGS converges faster.
 
-
-# Fitting Result Classes
 
 @dataclass
 class FosterModelResult:
@@ -134,7 +129,7 @@ class EvaluatedFosterModelResult(FosterModelResult):
     selection_criteria: Dict[str, float]
 
 
-# Core JAX-Based Fitting Implementation (Internal)
+# Foster impedance
 
 @jax.jit
 def _foster_impedance_jax(r: jnp.ndarray, c: jnp.ndarray, t: jnp.ndarray) -> jnp.ndarray:
@@ -157,7 +152,7 @@ def _foster_impedance_from_log_params(log_params: jnp.ndarray, t: jnp.ndarray) -
     return _foster_impedance_jax(r, c, t)
 
 
-# Initial Guess Generation (Internal)
+# Initial guess
 
 def _create_uniform_initial_guess(time_data: jnp.ndarray, impedance_data: jnp.ndarray,
                                   n_layers: int) -> jnp.ndarray:
@@ -182,7 +177,7 @@ def _create_exponential_initial_guess(time_data: jnp.ndarray, impedance_data: jn
     return jnp.hstack([r_guess, c_guess])
 
 
-# Optimization Engines (Internal)
+# Optimization
 
 def _check_convergence(step: int, loss_val: float, prev_loss: float, grad: jnp.ndarray,
                        log_params: jnp.ndarray, prev_params: jnp.ndarray,
