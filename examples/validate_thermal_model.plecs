@@ -1,0 +1,545 @@
+Plecs {
+  Name          "validate_thermal_model"
+  Version       "5.0"
+  CircuitModel  "ContStateSpace"
+  StartTime     "0.0"
+  TimeSpan      "0.5"
+  Timeout       ""
+  Solver        "dopri"
+  MaxStep       "1e-3"
+  InitStep      "-1"
+  FixedStep     "1e-3"
+  Refine        "1"
+  ZCStepSize    "1e-9"
+  RelTol        "1e-3"
+  AbsTol        "-1"
+  TurnOnThreshold "0"
+  NonIdealSwitchResistance "1"
+  SyncFixedStepTasks "2"
+  UseSingleCommonBaseRate "2"
+  LossVariableLimitExceededMsg "3"
+  NegativeSwitchLossMsg "3"
+  DivisionByZeroMsg "3"
+  DatatypeOverflowMsg "3"
+  DatatypeInheritanceConflictMsg "2"
+  ContSampleTimeConflictMsg "2"
+  StiffnessDetectionMsg "2"
+  MaxConsecutiveZCs "1000"
+  AlgebraicLoopWithStateMachineMsg "3"
+  AssertionAction "1"
+  FixedPointDatatypeOverride "1"
+  InitializationCommands ""
+  InitialState  "1"
+  SystemState   ""
+  JacobianComputation "2"
+  TaskingMode   "1"
+  TaskConfigurations ""
+  CodeGenParameterInlining "2"
+  CodeGenFloatingPointFormat "2"
+  CodeGenAbsTimeUsageMsg "3"
+  CodeGenBaseName ""
+  CodeGenOutputDir ""
+  CodeGenExtraOpts ""
+  CodeGenTarget "Generic"
+  CodeGenTargetSettings ""
+  ExtendedMatrixPrecision "1"
+  MatrixSignificanceCheck "2"
+  RemoveUnusedStateSpaceOutputs "2"
+  EnableStateSpaceSplitting "2"
+  DisplayStateSpaceSplitting "1"
+  DiscretizationMethod "2"
+  ExternalModeSettings ""
+  AlgebraicLoopMethod "1"
+  AlgebraicLoopTolerance "1e-6"
+  ScriptsDialogGeometry ""
+  ScriptsDialogSplitterPos "0"
+  MixedSignalSolverBypassOperatingPoint "1"
+  MixedSignalSolverInitialConditions "2"
+  MixedSignalSolverMaxNewtonIterations "30"
+  MixedSignalSolverNumThreads "-1"
+  MixedSignalSolverStartupMaxSyncSteps "10"
+  MixedSignalMatrixFactorization "1"
+  MixedSignalPreconditioner "1"
+  MixedSignalSolverDevelopmentOption "1"
+  OperatingPointMaxNewtonIterations "200"
+  OperatingPointLinearSolver "1"
+  OperatingPointRelativeNewtonTolerance "1e-3"
+  OperatingPointAbsoluteNewtonTolerance "1e-12"
+  OperatingPointNodalVoltageNewtonTolerance "1e-6"
+  SpiceTemperature "27"
+  Schematic {
+    Location      [1993, 144; 2996, 906]
+    ZoomFactor    1
+    SliderPosition [0, 0]
+    ShowBrowser   off
+    BrowserWidth  100
+    Component {
+      Type          ThermalChain
+      Name          "model_cauer"
+      Show          on
+      Position      [410, 100]
+      Direction     up
+      Flipped       off
+      LabelPosition south
+      Parameter {
+        Variable      "Rth"
+        Value         "r_cauer"
+        Show          on
+      }
+      Parameter {
+        Variable      "Cth"
+        Value         "c_cauer"
+        Show          on
+      }
+      Parameter {
+        Variable      "T_init"
+        Value         "0"
+        Show          on
+      }
+    }
+    Component {
+      Type          ControlledHeatFlow
+      Name          "pin_cauer"
+      Show          on
+      Position      [205, 140]
+      Direction     down
+      Flipped       on
+      LabelPosition northeast
+      Parameter {
+        Variable      "DiscretizationBehavior"
+        Value         "1"
+        Show          off
+      }
+      Parameter {
+        Variable      "StateSpaceInlining"
+        Value         "1"
+        Show          off
+      }
+    }
+    Component {
+      Type          Step
+      Name          "Step"
+      Show          on
+      Position      [80, 215]
+      Direction     right
+      Flipped       off
+      LabelPosition south
+      Parameter {
+        Variable      "Time"
+        Value         "0"
+        Show          off
+      }
+      Parameter {
+        Variable      "Before"
+        Value         "0"
+        Show          off
+      }
+      Parameter {
+        Variable      "After"
+        Value         "1"
+        Show          off
+      }
+      Parameter {
+        Variable      "DataType"
+        Value         "10"
+        Show          off
+      }
+    }
+    Component {
+      Type          Thermometer
+      Name          "thm_cauer"
+      Show          on
+      Position      [320, 140]
+      Direction     up
+      Flipped       off
+      LabelPosition southwest
+    }
+    Component {
+      Type          ThermalGround
+      Name          "ground_cauer"
+      Show          on
+      Position      [320, 195]
+      Direction     up
+      Flipped       off
+      LabelPosition east
+    }
+    Component {
+      Type          ThermalGround
+      Name          "ground_foster"
+      Show          on
+      Position      [310, 345]
+      Direction     up
+      Flipped       off
+      LabelPosition east
+      CommentOut    DisabledOpenCircuit
+    }
+    Component {
+      Type          Thermometer
+      Name          "thm_foster"
+      Show          on
+      Position      [310, 280]
+      Direction     up
+      Flipped       off
+      LabelPosition southwest
+      CommentOut    DisabledOpenCircuit
+    }
+    Component {
+      Type          ThermalMux
+      Name          "Mux"
+      Show          off
+      Position      [370, 230]
+      Direction     right
+      Flipped       off
+      LabelPosition south
+      CommentOut    DisabledOpenCircuit
+      Frame         [-2, -10; 7, 10]
+      Parameter {
+        Variable      "Width"
+        Value         "[1 3]"
+        Show          off
+      }
+    }
+    Component {
+      Type          ThermalMux
+      Name          "Mux1"
+      Show          off
+      Position      [490, 230]
+      Direction     right
+      Flipped       on
+      LabelPosition south
+      CommentOut    DisabledOpenCircuit
+      Frame         [-7, -10; 2, 10]
+      Parameter {
+        Variable      "Width"
+        Value         "[3 1]"
+        Show          off
+      }
+    }
+    Component {
+      Type          ThermalCapacitor
+      Name          "Cth6"
+      Show          off
+      Position      [430, 280]
+      Direction     right
+      Flipped       off
+      LabelPosition south
+      CommentOut    DisabledOpenCircuit
+      Parameter {
+        Variable      "Cth"
+        Value         "c_foster"
+        Show          on
+      }
+      Parameter {
+        Variable      "T_init"
+        Value         "0"
+        Show          on
+      }
+    }
+    Component {
+      Type          ThermalResistor
+      Name          "Rth6"
+      Show          off
+      Position      [430, 240]
+      Direction     right
+      Flipped       on
+      LabelPosition south
+      CommentOut    DisabledOpenCircuit
+      Parameter {
+        Variable      "Rth"
+        Value         "r_foster"
+        Show          on
+      }
+    }
+    Component {
+      Type          ControlledHeatFlow
+      Name          "pin_foster"
+      Show          on
+      Position      [205, 280]
+      Direction     down
+      Flipped       on
+      LabelPosition northeast
+      CommentOut    DisabledOpenCircuit
+      Parameter {
+        Variable      "DiscretizationBehavior"
+        Value         "1"
+        Show          off
+      }
+      Parameter {
+        Variable      "StateSpaceInlining"
+        Value         "1"
+        Show          off
+      }
+    }
+    Component {
+      Type          SignalMux
+      Name          "Mux2"
+      Show          off
+      Position      [605, 240]
+      Direction     right
+      Flipped       off
+      LabelPosition south
+      Frame         [-2, -15; 7, 15]
+      Parameter {
+        Variable      "Width"
+        Value         "3"
+        Show          off
+      }
+    }
+    Component {
+      Type          Scope
+      Name          "Scope"
+      Show          on
+      Position      [670, 240]
+      Direction     up
+      Flipped       off
+      LabelPosition south
+      Frame         [-15, -15; 15, 15]
+      Location      [2225, 55; 3583, 981]
+      State         "AAAA/wAAAAD9AAAAAgAAAAEAAADgAAADKfwCAAAAA/sAAAAQAFoAbwBvA"
+"G0AQQByAGUAYQAAAAAA/////wAAADQA////+wAAABQAUwBhAHYAZQBkAFYAaQBlAHcAcwAAAAAcAA"
+"AA4wAAAGYA////+wAAAAwAVAByAGEAYwBlAHMBAAAAHAAAAykAAABmAP///wAAAAMAAAVOAAAAWPw"
+"BAAAAAfsAAAAUAEQAYQB0AGEAVwBpAGQAZwBlAHQBAAAAAAAABU4AAABCAP///wAABG0AAAMpAAAA"
+"BAAAAAQAAAAIAAAACPwAAAABAAAAAgAAAAEAAAAOAFQAbwBvAGwAQgBhAHIBAAAAAP////8AAAAAA"
+"AAAAA=="
+      SavedViews    "AAAAAgAAAAA="
+      HeaderState   "{\"DefaultSecSize\":0,\"FirstSecSize\":254,\"Labels\":[\""
+"Delta\"],\"VisualIdxs\":[3]}"
+      PlotPalettes  "AAAAAQAAAAYAAAACAAAAAwAAAAIC//8u4P//zMwAAAL//y7g//+ZmQAAA"
+"AAAAgL//wAA/////wAAAv//AAD//8zMAAAAAAACAv//T7D/////AAAC//9PsP//zMwAAAAAAAMAAA"
+"ACAAAAAAACAAAAAAACAAAAAAADAAAAAgAAAAEAAAABAAAAAgAAAAEAAAABAAAAAgAAAAEAAAABAAA"
+"AAwAAAAIAAAAAAAIAAAAAAAIBAAAAAAMAAAACP/AAAAAAAAA/8AAAAAAAAAAAAAI/8AAAAAAAAD/w"
+"AAAAAAAAAAAAAj/wAAAAAAAAP/AAAAAAAAAAAAADAAAAAgAAAAAAAgAAAAAAAgAA"
+      Axes          "1"
+      TimeRange     "0.0"
+      ScrollingMode "1"
+      SingleTimeAxis "1"
+      Open          "1"
+      Ts            "-1"
+      SampleLimit   "0"
+      XAxisLabel    "Time / s"
+      ShowLegend    "1"
+      Axis {
+        Name          ""
+        AutoScale     1
+        MinValue      0
+        MaxValue      1
+        Signals       {}
+        SignalTypes   [ 0 0 1 ]
+        Untangle      0
+        KeepBaseline  off
+        BaselineValue 0
+      }
+      Fourier {
+        SingleXAxis       on
+        AxisLabel         "Frequency / Hz"
+        Scaling           0
+        PhaseDisplay      0
+        ShowFourierLegend off
+        Axis {
+          Name          ""
+          AutoScale     1
+          MinValue      0
+          MaxValue      1
+          Signals       {}
+          Untangle      0
+          KeepBaseline  off
+          BaselineValue 0
+        }
+      }
+    }
+    Component {
+      Type          Lookup1D
+      Name          "1D-Table"
+      Show          on
+      Position      [370, 410]
+      Direction     right
+      Flipped       off
+      LabelPosition south
+      Parameter {
+        Variable      "x"
+        Value         "time_data"
+        Show          on
+      }
+      Parameter {
+        Variable      "f(x)"
+        Value         "impedance_data"
+        Show          on
+      }
+      Parameter {
+        Variable      "ZeroCrossingSignals"
+        Value         "1"
+        Show          on
+      }
+    }
+    Component {
+      Type          Clock
+      Name          "Clock"
+      Show          on
+      Position      [80, 410]
+      Direction     right
+      Flipped       off
+      LabelPosition south
+    }
+    Connection {
+      Type          HeatPipe
+      SrcComponent  "pin_cauer"
+      SrcTerminal   2
+      Points        [205, 100; 320, 100]
+      Branch {
+        DstComponent  "model_cauer"
+        DstTerminal   1
+      }
+      Branch {
+        DstComponent  "thm_cauer"
+        DstTerminal   1
+      }
+    }
+    Connection {
+      Type          HeatPipe
+      SrcComponent  "pin_cauer"
+      SrcTerminal   1
+      Points        [205, 180; 320, 180]
+      Branch {
+        Points        [520, 180; 520, 100]
+        DstComponent  "model_cauer"
+        DstTerminal   2
+      }
+      Branch {
+        DstComponent  "ground_cauer"
+        DstTerminal   1
+      }
+      Branch {
+        DstComponent  "thm_cauer"
+        DstTerminal   2
+      }
+    }
+    Connection {
+      Type          HeatPipe
+      SrcComponent  "pin_foster"
+      SrcTerminal   2
+      Points        [205, 225; 310, 225]
+      Branch {
+        DstComponent  "Mux"
+        DstTerminal   2
+      }
+      Branch {
+        DstComponent  "thm_foster"
+        DstTerminal   1
+      }
+    }
+    Connection {
+      Type          HeatPipe
+      SrcComponent  "thm_foster"
+      SrcTerminal   2
+      Points        [310, 330]
+      Branch {
+        Points        [205, 330]
+        DstComponent  "pin_foster"
+        DstTerminal   1
+      }
+      Branch {
+        Points        [520, 330; 520, 235]
+        DstComponent  "Mux1"
+        DstTerminal   3
+      }
+      Branch {
+        DstComponent  "ground_foster"
+        DstTerminal   1
+      }
+    }
+    Connection {
+      Type          HeatPipe
+      SrcComponent  "Mux"
+      SrcTerminal   1
+      DstComponent  "Mux1"
+      DstTerminal   1
+    }
+    Connection {
+      Type          HeatPipe
+      SrcComponent  "Rth6"
+      SrcTerminal   2
+      Points        [480, 240; 480, 260]
+      Branch {
+        Points        [480, 280]
+        DstComponent  "Cth6"
+        DstTerminal   1
+      }
+      Branch {
+        Points        [510, 260; 510, 225]
+        DstComponent  "Mux1"
+        DstTerminal   2
+      }
+    }
+    Connection {
+      Type          HeatPipe
+      SrcComponent  "Rth6"
+      SrcTerminal   1
+      Points        [380, 240; 380, 255]
+      Branch {
+        Points        [380, 280]
+        DstComponent  "Cth6"
+        DstTerminal   2
+      }
+      Branch {
+        Points        [355, 255; 355, 235]
+        DstComponent  "Mux"
+        DstTerminal   3
+      }
+    }
+    Connection {
+      Type          Signal
+      SrcComponent  "Step"
+      SrcTerminal   1
+      Points        [140, 215]
+      Branch {
+        Points        [140, 140]
+        DstComponent  "pin_cauer"
+        DstTerminal   3
+      }
+      Branch {
+        Points        [140, 280]
+        DstComponent  "pin_foster"
+        DstTerminal   3
+      }
+    }
+    Connection {
+      Type          Signal
+      SrcComponent  "thm_cauer"
+      SrcTerminal   3
+      Points        [335, 175; 550, 175; 550, 230]
+      DstComponent  "Mux2"
+      DstTerminal   2
+    }
+    Connection {
+      Type          Signal
+      SrcComponent  "thm_foster"
+      SrcTerminal   3
+      Points        [355, 280; 355, 320; 550, 320; 550, 240]
+      DstComponent  "Mux2"
+      DstTerminal   3
+    }
+    Connection {
+      Type          Signal
+      SrcComponent  "Mux2"
+      SrcTerminal   1
+      DstComponent  "Scope"
+      DstTerminal   1
+    }
+    Connection {
+      Type          Signal
+      SrcComponent  "Clock"
+      SrcTerminal   1
+      DstComponent  "1D-Table"
+      DstTerminal   1
+    }
+    Connection {
+      Type          Signal
+      SrcComponent  "1D-Table"
+      SrcTerminal   2
+      Points        [570, 410; 570, 250]
+      DstComponent  "Mux2"
+      DstTerminal   4
+    }
+  }
+}
+DemoSignature "EatXiH6jJky6qL/+zp/gbmvLeTmm3SLzfxZsXWIISW0="

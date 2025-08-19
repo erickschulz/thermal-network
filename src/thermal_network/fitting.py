@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
 """
-This module provides functions for fitting thermal network models to experimental data.
+This module provides functions for fitting thermal network models to impedance data.
 
 It leverages JAX for high-performance, gradient-based optimization to determine the
 parameters (resistances and capacitances) of a Foster network that best fit
@@ -43,11 +42,8 @@ logging.basicConfig(
     level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', force=True)
 logger = logging.getLogger(__name__)
 
-
-# A small value to prevent log(0) and division by zero during optimization.
-MIN_LOG_PARAMETER = 1e-12
-# A large value to clip parameters and prevent numerical overflow.
-MAX_LOG_PARAMETER = 1e12
+# Thresholds for linearized exponentiation to prevent overflow
+SAFE_EXP_ARG_MAX = 60
 # Default limit for layers in automatic model selection.
 DEFAULT_MAX_LAYERS = 10
 # Supported criteria for automatic model selection.
@@ -69,9 +65,9 @@ class OptimizationConfig:
         gradient_tol: Convergence tolerance for the gradient norm.
         params_rtol: Relative tolerance for parameter change.
         params_atol: Absolute tolerance for parameter change.
-        randomize_guess_strength: Stddev of multiplicative noise for
-                                  randomizing the initial guess. 0 implies
-                                  a deterministic initial guess.
+        randomize_guess_strength: Stddev of additive noise for
+                                  randomizing the initial guess in log-space.
+                                  0 implies a deterministic initial guess.
     """
     optimizer: str = 'lbfgs'
     n_steps: Optional[int] = None
@@ -86,9 +82,9 @@ class OptimizationConfig:
         """Sets optimizer-specific default for n_steps."""
         if self.n_steps is None:
             if self.optimizer.lower() == 'adam':
-                self.n_steps = 20000  # Adam requires more iterations.
+                self.n_steps = 100000  # Adam requires more iterations.
             else:
-                self.n_steps = 2000  # L-BFGS converges faster.
+                self.n_steps = 20000  # L-BFGS converges faster.
 
 
 @dataclass
@@ -101,10 +97,11 @@ class FosterModelResult:
         final_loss: The final mean squared error of the fit.
         optimizer_used: The name of the optimizer ('lbfgs' or 'adam').
         convergence_info: Details about convergence.
+        network: The final fitted FosterNetwork.
     """
     n_layers: int
     final_loss: float
-    optimizer_used: str
+    optimizer: str
     convergence_info: Dict[str, Any]
     network: FosterNetwork
 
@@ -124,55 +121,77 @@ class EvaluatedFosterModelResult(FosterModelResult):
     selection_criteria: Dict[str, float]
 
 
-# Foster impedance
-
 @jax.jit
-def _foster_impedance_jax(r: jnp.ndarray, c: jnp.ndarray, t: jnp.ndarray) -> jnp.ndarray:
-    """JIT-compiled time-domain thermal impedance for a Foster model."""
+def _foster_impedance(r: jnp.ndarray, c: jnp.ndarray, t: jnp.ndarray) -> jnp.ndarray:
+    """Time-domain thermal impedance for a Foster model."""
     tau = r * c
     return jnp.sum(r * (1.0 - jnp.exp(-t[:, jnp.newaxis] / tau)), axis=1)
 
 
-def _safe_exp_params(log_params: jnp.ndarray) -> jnp.ndarray:
-    """Safely exponentiates log-params with clipping to prevent overflow."""
-    clipped_log = jnp.clip(log_params, jnp.log(MIN_LOG_PARAMETER), jnp.log(MAX_LOG_PARAMETER))
-    return jnp.exp(clipped_log)
+def _safe_exp(x: jnp.ndarray) -> jnp.ndarray:
+    """Linearized exponential to prevent overflow."""
+    return jnp.where(x > SAFE_EXP_ARG_MAX,
+                     jnp.exp(SAFE_EXP_ARG_MAX)*(1. + x - SAFE_EXP_ARG_MAX),
+                     jnp.exp(x))
 
 
-def _foster_impedance_from_log_params(log_params: jnp.ndarray, t: jnp.ndarray) -> jnp.ndarray:
-    """Evaluates Foster impedance from a single vector of log-scaled params."""
-    n_layers = log_params.size // 2
-    params = _safe_exp_params(log_params)
-    r, c = params[:n_layers], params[n_layers:]
-    return _foster_impedance_jax(r, c, t)
+def _pack(r: jnp.ndarray, c: jnp.ndarray) -> jnp.ndarray:
+    """
+    Packs a Foster network r and c values into the raw,
+    reparameterized log-space parameters used by the optimizer.
+    This is the inverse of the _unpack function.
+    """
+    log_r = jnp.log(r)
+    tau = r * c
+    log_tau = jnp.log(tau)
+    return jnp.hstack([log_r, log_tau[0], jnp.diff(log_tau)])
 
 
-# Initial guess
-
-def _create_uniform_initial_guess(time_data: jnp.ndarray, impedance_data: jnp.ndarray,
-                                  n_layers: int) -> jnp.ndarray:
-    """Generates an initial guess with resistance distributed uniformly."""
-    total_r = impedance_data[-1]
-    tau_min = time_data[1] if len(time_data) > 1 else 1e-6
-    target_taus = jnp.logspace(jnp.log10(tau_min), jnp.log10(time_data[-1]), n_layers)
-    r_guess = jnp.full(shape=(n_layers,), fill_value=(total_r / n_layers))
-    c_guess = target_taus / r_guess
-    return jnp.hstack([r_guess, c_guess])
-
-
-def _create_exponential_initial_guess(time_data: jnp.ndarray, impedance_data: jnp.ndarray,
-                                      n_layers: int) -> jnp.ndarray:
-    """Generates an initial guess with resistance weighted exponentially."""
-    total_r = impedance_data[-1]
-    tau_min = time_data[1] if len(time_data) > 1 else 1e-6
-    target_taus = jnp.logspace(jnp.log10(tau_min), jnp.log10(time_data[-1]), n_layers)
-    exp_weights = jnp.exp(-np.arange(n_layers, dtype=float))
-    r_guess = total_r * (exp_weights / jnp.sum(exp_weights))
-    c_guess = target_taus / r_guess
-    return jnp.hstack([r_guess, c_guess])
+def _unpack(log_params: jnp.ndarray, n_layers: int) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    """
+    Unpacks the raw log-space parameters from the optimizer into a Foster network
+    r and c values.
+    """
+    r = _safe_exp(log_params[:n_layers])
+    log_tau_and_ratios = log_params[n_layers:]
+    log_tau_foster = jnp.cumsum(log_tau_and_ratios)
+    tau = _safe_exp(log_tau_foster)
+    c = tau / r
+    return r, c
 
 
-# Optimization
+def _create_initial_guess(
+    time_data: jnp.ndarray,
+    impedance_data: jnp.ndarray,
+    n_layers: int,
+    tau_min_initial_guess: float = 1e-3
+) -> jnp.ndarray:
+    """
+    Generates a physically plausible initial guess for the reparameterized
+    optimization variables.
+    """
+    r_total = impedance_data[-1]
+    r = jnp.full(shape=(n_layers,), fill_value=(r_total / n_layers))
+    log_r = jnp.log(r)
+
+    tau_max = time_data[-1]
+    tau = jnp.logspace(
+        start=jnp.log10(tau_min_initial_guess),
+        stop=jnp.log10(tau_max),
+        num=n_layers
+    )
+
+    log_tau = jnp.log(tau)
+    log_tau_min = log_tau[0]
+    log_tau_ratio = jnp.diff(log_tau)
+
+    packed_params = jnp.hstack([
+        log_r,
+        log_tau_min,
+        log_tau_ratio
+    ])
+    return packed_params
+
 
 def _check_convergence(step: int, loss_val: float, prev_loss: float, grad: jnp.ndarray,
                        log_params: jnp.ndarray, prev_params: jnp.ndarray,
@@ -182,7 +201,8 @@ def _check_convergence(step: int, loss_val: float, prev_loss: float, grad: jnp.n
         return {'converged': True, 'reason': f'loss_change < {config.loss_tol}', 'steps': step + 1}
     if jnp.linalg.norm(grad) < config.gradient_tol:
         return {'converged': True, 'reason': f'gradient_norm < {config.gradient_tol}', 'steps': step + 1}
-    params_tol = config.params_rtol * jnp.linalg.norm(log_params) + config.params_atol
+    params_tol = config.params_rtol * \
+        jnp.linalg.norm(log_params) + config.params_atol
     if jnp.linalg.norm(prev_params - log_params) < params_tol:
         return {'converged': True, 'reason': 'parameter_change', 'steps': step + 1}
     return None
@@ -191,25 +211,35 @@ def _check_convergence(step: int, loss_val: float, prev_loss: float, grad: jnp.n
 def _run_optimization_engine(
     time_data: jnp.ndarray,
     impedance_data: jnp.ndarray,
-    initial_guess: jnp.ndarray,
+    initial_log_guess: jnp.ndarray,
     n_layers: int,
-    config: OptimizationConfig,
-    optimizer_name: str
-) -> Tuple[jnp.ndarray, jnp.ndarray, Dict[str, Any]]:
+    config: OptimizationConfig
+) -> Tuple[jnp.ndarray, Dict[str, Any]]:
     """Generic optimization runner for both L-BFGS and Adam."""
+
     def loss_fn(log_params: jnp.ndarray) -> jnp.ndarray:
-        model_z = _foster_impedance_from_log_params(log_params, time_data)
-        return jnp.mean(jnp.square(model_z - impedance_data))
+        r, c = _unpack(log_params=log_params, n_layers=n_layers)
 
-    if optimizer_name == 'lbfgs':
-        optimizer = optax.lbfgs()
-    elif optimizer_name == 'adam':
-        optimizer = optax.adam(config.learning_rate)
-    else:
-        raise ValueError(f"Invalid optimizer: '{optimizer_name}'.")
+        model_impedance = _foster_impedance(r=r, c=c, t=time_data)
+        mean_square_error = jnp.mean(jnp.square(
+            jnp.log(model_impedance) - jnp.log(impedance_data)))
 
-    initial_log_params = jnp.log(jnp.clip(initial_guess, MIN_LOG_PARAMETER))
-    opt_state = optimizer.init(initial_log_params)
+        r_thermal = impedance_data[-1]
+        r_total = jnp.sum(r)
+        thermal_resistance_error = jnp.square(r_thermal - r_total)
+
+        tau_min = (r * c)[0]
+        log_tau_error = jnp.log(1e-3) - jnp.log(tau_min)
+        min_tau_penalty = 10*jnp.square(jax.nn.relu(log_tau_error))
+
+        return thermal_resistance_error + mean_square_error + min_tau_penalty
+
+    optimizer_name = config.optimizer.lower()
+    optimizer = optax.chain(
+        optax.clip_by_global_norm(1.0),
+        optax.lbfgs() if optimizer_name == 'lbfgs' else optax.adam(config.learning_rate)
+    )
+    opt_state = optimizer.init(initial_log_guess)
     loss_and_grad_fn = jax.value_and_grad(loss_fn)
 
     @jax.jit
@@ -220,34 +250,37 @@ def _run_optimization_engine(
                 grad, opt_state, params=params, value=loss_val, grad=grad, value_fn=loss_fn
             )
         else:
-            updates, new_opt_state = optimizer.update(grad, opt_state, params=params)
+            updates, new_opt_state = optimizer.update(
+                grad, opt_state, params=params)
         new_params = optax.apply_updates(params, updates)
         return new_params, new_opt_state, loss_val, grad
 
-    log_params = initial_log_params
-    prev_loss, prev_params = float('inf'), log_params
+    log_params = initial_log_guess
+    prev_params = log_params
+    prev_loss = float('inf')
     conv_info = {'converged': False, 'reason': 'max_steps_reached'}
 
     assert config.n_steps is not None
     for step in range(config.n_steps):
-        log_params, opt_state, loss_val, grad = update_step(log_params, opt_state)
+        log_params, opt_state, loss_val, grad = update_step(
+            log_params, opt_state)
+
         if conv_result := _check_convergence(step, loss_val, prev_loss, grad, log_params, prev_params, config):
             conv_info.update(conv_result)
             break
-        prev_loss, prev_params = loss_val, log_params
-    
+
+        prev_loss = loss_val
+        prev_params = log_params
+
     final_loss, final_grad = loss_and_grad_fn(log_params)
+
     conv_info.update({
         'final_loss': float(final_loss),
         'final_grad_norm': float(jnp.linalg.norm(final_grad))
     })
 
-    final_params = _safe_exp_params(log_params)
-    r, c = final_params[:n_layers], final_params[n_layers:]
-    return r, c, conv_info
+    return log_params, conv_info
 
-
-# High-Level Fitting Logic (Internal)
 
 def _validate_inputs(time_data: jnp.ndarray, z_data: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Validates and sorts input data for fitting functions."""
@@ -256,51 +289,63 @@ def _validate_inputs(time_data: jnp.ndarray, z_data: jnp.ndarray) -> Tuple[jnp.n
     if len(time_data) != len(z_data):
         raise ValueError("Time and impedance data must have the same length.")
     if jnp.any(time_data <= 0) or jnp.any(z_data <= 0):
-        raise ValueError("Time and impedance data must contain only positive values.")
+        raise ValueError(
+            "Time and impedance data must contain only positive values.")
     if not jnp.all(jnp.diff(time_data) > 0):
-        logger.warning("Time data is not strictly increasing. Sorting automatically.")
+        logger.warning(
+            "Time data is not strictly increasing. Sorting automatically.")
         sort_idx = jnp.argsort(time_data)
         return time_data[sort_idx], z_data[sort_idx]
     return time_data, z_data
 
 
-def _run_single_optimization(time_data: jnp.ndarray, z_data: jnp.ndarray, n_layers: int,
-                             config: OptimizationConfig, init_type: str, seed: int
-                             ) -> FosterModelResult:
+def _run_single_optimization(
+    time_data: jnp.ndarray,
+    z_data: jnp.ndarray,
+    n_layers: int,
+    config: OptimizationConfig,
+    seed: int,
+    tau_min_initial_guess: float
+) -> FosterModelResult:
     """Runs a single optimization for a fixed number of layers."""
-    # Generate initial guess
-    if init_type == 'uniform':
-        base_init = _create_uniform_initial_guess(time_data, z_data, n_layers)
-    elif init_type == 'exponential':
-        base_init = _create_exponential_initial_guess(time_data, z_data, n_layers)
-    else:
-        raise ValueError(f"Unknown initialization_type: '{init_type}'")
+    base_log_init = _create_initial_guess(
+        time_data, z_data, n_layers, tau_min_initial_guess
+    )
 
-    # Add optional randomization
+    # Apply additive noise in the log-space
     if config.randomize_guess_strength > 0.:
-        noise = 1.0 + config.randomize_guess_strength * jax.random.normal(jax.random.PRNGKey(seed), shape=base_init.shape)
-        initial_guess = base_init * noise
+        noise = config.randomize_guess_strength * jax.random.normal(
+            jax.random.PRNGKey(seed), shape=base_log_init.shape
+        )
+        initial_log_guess = base_log_init + noise
     else:
-        initial_guess = base_init
+        initial_log_guess = base_log_init
 
     # Run optimization
-    r_values, c_values, conv_info = _run_optimization_engine(
-        time_data, z_data, initial_guess, n_layers, config, config.optimizer.lower()) # type: ignore
+    final_log_params, conv_info = _run_optimization_engine(
+        time_data, z_data, initial_log_guess, n_layers, config
+    )
+
+    # Unpack final results
+    r_values, c_values = _unpack(final_log_params, n_layers)
 
     if not (jnp.all(jnp.isfinite(r_values)) and jnp.all(jnp.isfinite(c_values))):
-        raise RuntimeError(f"Optimization produced invalid parameters (NaN or Inf) for {n_layers} layers.")
+        raise RuntimeError(
+            f"Optimization produced invalid parameters (NaN or Inf) for {n_layers} layers."
+        )
 
     return FosterModelResult(
-        network=FosterNetwork(r_values, c_values), n_layers=n_layers, final_loss=conv_info['final_loss'],
-        optimizer_used=config.optimizer, convergence_info=conv_info
+        network=FosterNetwork(r_values, c_values),
+        n_layers=n_layers,
+        final_loss=conv_info['final_loss'],
+        optimizer=config.optimizer,
+        convergence_info=conv_info
     )
 
 
-# Model Selection Criteria (Internal)
-
 def _calculate_model_selection_criteria(n_data: int, n_params: int, mse: float,
                                         criteria: List[str]) -> Dict[str, float]:
-    """Calculates specified model selection criteria (AIC, BIC)."""
+    """Calculates specified model selection criteria AIC/BIC."""
     unsupported = set(criteria) - SUPPORTED_CRITERIA
     if unsupported:
         raise ValueError(f"Unsupported criteria: {list(unsupported)}.")
@@ -314,12 +359,14 @@ def _calculate_model_selection_criteria(n_data: int, n_params: int, mse: float,
     return results
 
 
-# Public User-Facing API Functions
-
-def fit_foster_network(time_data: RCValues, impedance_data: RCValues, n_layers: int,
-                       config: Optional[OptimizationConfig] = None,
-                       initialization_type: str = 'exponential',
-                       random_seed: int = 0) -> FosterModelResult:
+def fit_foster_network(
+    time_data: RCValues,
+    impedance_data: RCValues,
+    n_layers: int,
+    config: Optional[OptimizationConfig] = None,
+    random_seed: int = 0,
+    tau_min_initial_guess: float = 1e-3
+) -> FosterModelResult:
     """
     Fits an N-layer Foster network to thermal impedance data.
 
@@ -328,26 +375,32 @@ def fit_foster_network(time_data: RCValues, impedance_data: RCValues, n_layers: 
         impedance_data: Array of corresponding thermal impedance values.
         n_layers: The number of RC layers to fit.
         config: Optimization configuration. Uses defaults if None.
-        initialization_type: Method for generating the initial guess
-                             ('uniform' or 'exponential').
         random_seed: Seed for randomizing the initial guess.
+        tau_min_initial_guess: The starting point for the smallest time
+                               constant, to guide the fit to a non-stiff region.
 
     Returns:
-        A FosterModelResult object with the fitted R/C values and metadata.
+        A FosterModelResult object with the fitted r and c values and metadata.
     """
     config = config or OptimizationConfig()
-    t_data, z_data = _validate_inputs(jnp.asarray(time_data), jnp.asarray(impedance_data))
+    t_data, z_data = _validate_inputs(
+        jnp.asarray(time_data), jnp.asarray(impedance_data)
+    )
 
     return _run_single_optimization(
-        t_data, z_data, n_layers, config, initialization_type, random_seed)
+        t_data, z_data, n_layers, config, random_seed, tau_min_initial_guess
+    )
 
 
-def fit_optimal_foster_network(time_data: RCValues, impedance_data: RCValues,
-                               max_layers: int = DEFAULT_MAX_LAYERS,
-                               selection_criterion: str = DEFAULT_CRITERION,
-                               config: Optional[OptimizationConfig] = None,
-                               initialization_type: str = 'exponential',
-                               random_seed: int = 0) -> EvaluatedFosterModelResult:
+def fit_optimal_foster_network(
+    time_data: RCValues,
+    impedance_data: RCValues,
+    max_layers: int = DEFAULT_MAX_LAYERS,
+    selection_criterion: str = DEFAULT_CRITERION,
+    config: Optional[OptimizationConfig] = None,
+    random_seed: int = 0,
+    tau_min_initial_guess: float = 1e-3
+) -> EvaluatedFosterModelResult:
     """
     Fits models with 1 to max_layers and selects the best one.
 
@@ -359,36 +412,44 @@ def fit_optimal_foster_network(time_data: RCValues, impedance_data: RCValues,
         max_layers: The maximum number of layers to test.
         selection_criterion: The criterion for model selection ('aic' or 'bic').
         config: Optimization configuration. Uses defaults if None.
-        initialization_type: Method for the initial guess.
         random_seed: Seed for randomizing the initial guess.
+        tau_min_initial_guess: The starting point for the smallest time constant.
 
     Returns:
         An EvaluatedFosterModelResult object for the best model found.
-
-    Raises:
-        ValueError: If an unsupported selection_criterion is provided.
-        RuntimeError: If no models could be successfully fitted.
     """
     config = config or OptimizationConfig()
     if selection_criterion.lower() not in SUPPORTED_CRITERIA:
         raise ValueError(f"Criterion must be one of {SUPPORTED_CRITERIA}.")
 
-    t_data, z_data = _validate_inputs(jnp.asarray(time_data), jnp.asarray(impedance_data))
+    t_data, z_data = _validate_inputs(
+        jnp.asarray(time_data), jnp.asarray(impedance_data)
+    )
     evaluated_models: List[EvaluatedFosterModelResult] = []
-    
-    logger.info(f"Searching for optimal model (1 to {max_layers} layers) using {selection_criterion.upper()}...")
+
+    logger.info(
+        f"Searching for optimal model (1 to {max_layers} layers) using {selection_criterion.upper()}..."
+    )
 
     for n in range(1, max_layers + 1):
         try:
             base_model = fit_foster_network(
-                t_data, z_data, n, config, initialization_type, random_seed)
-            
-            logger.info(f"  > Completed fit for {n}-layer network. Final Loss: {base_model.final_loss:.6f}")
+                t_data, z_data, n, config, random_seed, tau_min_initial_guess
+            )
+
+            # To calculate an unbiased MSE, use the final fitted parameters
+            r, c = base_model.network.r, base_model.network.c
+            final_model_z = _foster_impedance(r, c, t_data)
+            mse = jnp.mean(jnp.square(final_model_z - z_data))
+
+            logger.info(
+                f"  > Completed fit for {n}-layer network. Final Loss: {base_model.final_loss:.6f}, MSE: {mse:.6f}"
+            )
 
             criteria = _calculate_model_selection_criteria(
                 n_data=len(t_data),
                 n_params=2 * base_model.n_layers,
-                mse=base_model.final_loss,
+                mse=float(mse),
                 criteria=['aic', 'bic']
             )
 
@@ -396,7 +457,7 @@ def fit_optimal_foster_network(time_data: RCValues, impedance_data: RCValues,
                 network=base_model.network,
                 n_layers=base_model.n_layers,
                 final_loss=base_model.final_loss,
-                optimizer_used=base_model.optimizer_used,
+                optimizer=base_model.optimizer,
                 convergence_info=base_model.convergence_info,
                 selection_criteria=criteria
             ))
@@ -408,13 +469,18 @@ def fit_optimal_foster_network(time_data: RCValues, impedance_data: RCValues,
     if not evaluated_models:
         raise RuntimeError("Failed to fit any models.")
 
-    best_model = min(evaluated_models, key=lambda m: m.selection_criteria[selection_criterion.lower()])
+    best_model = min(
+        evaluated_models, key=lambda m: m.selection_criteria[selection_criterion.lower(
+        )]
+    )
 
     logger.info(f" Model Selection Complete ({selection_criterion.upper()})")
     for model in evaluated_models:
         marker = " << SELECTED" if model.n_layers == best_model.n_layers else ""
         aic = model.selection_criteria.get('aic', float('nan'))
         bic = model.selection_criteria.get('bic', float('nan'))
-        logger.info(f"  {model.n_layers} layers: Loss={model.final_loss:.6f}, AIC={aic:.2f}, BIC={bic:.2f}{marker}")
+        logger.info(
+            f"  {model.n_layers} layers: Loss={model.final_loss:.6f}, AIC={aic:.2f}, BIC={bic:.2f}{marker}"
+        )
 
     return best_model

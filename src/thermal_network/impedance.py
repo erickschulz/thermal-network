@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 This module provides functions for calculating the impedance of thermal networks.
 

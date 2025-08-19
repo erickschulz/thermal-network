@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 This module provides functions for converting between different thermal network models.
 

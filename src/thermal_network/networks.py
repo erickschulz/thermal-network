@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 This module defines the core data structures for thermal network models.
 
