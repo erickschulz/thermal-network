@@ -5,7 +5,7 @@ Plecs {
   StartTime     "0.0"
   TimeSpan      "0.5"
   Timeout       ""
-  Solver        "dopri"
+  Solver        "radau"
   MaxStep       "1e-3"
   InitStep      "-1"
   FixedStep     "1e-3"
@@ -68,7 +68,7 @@ Plecs {
   OperatingPointNodalVoltageNewtonTolerance "1e-6"
   SpiceTemperature "27"
   Schematic {
-    Location      [2409, 179; 3412, 941]
+    Location      [2328, 158; 3331, 920]
     ZoomFactor    1
     SliderPosition [0, 0]
     ShowBrowser   off
@@ -542,4 +542,4 @@ Plecs {
     }
   }
 }
-DemoSignature "idmgq9hU6MSJUqWqaQUUtkF4dymkHY41/yKUQsqUSsA="
+DemoSignature "QrcDVe/qfwtPUdTOYNBpaeV/3jtJdYMlwK8LIQWtUBA="
