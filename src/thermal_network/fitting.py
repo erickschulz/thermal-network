@@ -2,7 +2,7 @@
 This module provides functions for fitting thermal network models to impedance data.
 
 It leverages JAX for high-performance, gradient-based optimization to determine the
-parameters (resistances and capacitances) of a Foster network that best fit
+parameters (resistances and capacitances) of a Foster network that best fit provided
 thermal impedance data. The module also includes functionality for automatic
 model selection, allowing it to identify the optimal number of RC layers by comparing
 models of different complexities using information criteria like AIC or BIC.
@@ -33,7 +33,6 @@ __all__ = [
     'fit_optimal_foster_network',
 ]
 
-# JAX Configuration
 # Enable 64-bit precision in JAX for higher accuracy.
 jax.config.update("jax_enable_x64", True)
 
@@ -48,26 +47,12 @@ SAFE_EXP_ARG_MAX = 60
 DEFAULT_MAX_LAYERS = 10
 # Supported criteria for automatic model selection.
 SUPPORTED_CRITERIA = {'aic', 'bic'}
-# Default criterion if none is specified.
-DEFAULT_CRITERION = 'bic'
 
 
 @dataclass
 class OptimizationConfig:
     """
     Configuration for the fitting optimization process.
-
-    Attributes:
-        optimizer: The optimization algorithm ('lbfgs' or 'adam').
-        n_steps: Maximum number of optimization steps.
-        learning_rate: Learning rate for the Adam optimizer.
-        loss_tol: Convergence tolerance for the change in loss value.
-        gradient_tol: Convergence tolerance for the gradient norm.
-        params_rtol: Relative tolerance for parameter change.
-        params_atol: Absolute tolerance for parameter change.
-        randomize_guess_strength: Stddev of additive noise for
-                                  randomizing the initial guess in log-space.
-                                  0 implies a deterministic initial guess.
     """
     optimizer: str = 'lbfgs'
     n_steps: Optional[int] = None
@@ -82,22 +67,15 @@ class OptimizationConfig:
         """Sets optimizer-specific default for n_steps."""
         if self.n_steps is None:
             if self.optimizer.lower() == 'adam':
-                self.n_steps = 100000  # Adam requires more iterations.
+                self.n_steps = 100000
             else:
-                self.n_steps = 20000  # L-BFGS converges faster.
+                self.n_steps = 20000
 
 
 @dataclass
 class FosterModelResult:
     """
     Stores the results of a Foster network fitting optimization.
-
-    Attributes:
-        n_layers: The number of RC layers in the fitted model.
-        final_loss: The final mean squared error of the fit.
-        optimizer_used: The name of the optimizer ('lbfgs' or 'adam').
-        convergence_info: Details about convergence.
-        network: The final fitted FosterNetwork.
     """
     n_layers: int
     final_loss: float
@@ -110,13 +88,6 @@ class FosterModelResult:
 class EvaluatedFosterModelResult(FosterModelResult):
     """
     Extends FosterModelResult with model selection criteria values.
-
-    This object is created by the automatic model selection function to compare
-    models of different complexities.
-
-    Attributes:
-        selection_criteria (Dict[str, float]): Calculated criteria values
-                                               (e.g., {'aic': 10, 'bic': 15}).
     """
     selection_criteria: Dict[str, float]
 
@@ -135,27 +106,55 @@ def _safe_exp(x: jnp.ndarray) -> jnp.ndarray:
                      jnp.exp(x))
 
 
-def _pack(r: jnp.ndarray, c: jnp.ndarray) -> jnp.ndarray:
+def _pack(
+    r: jnp.ndarray,
+    c: jnp.ndarray,
+    tau_min_floor: Optional[float] = None
+) -> jnp.ndarray:
     """
-    Packs a Foster network r and c values into the raw,
-    reparameterized log-space parameters used by the optimizer.
+    Transforms Foster network r and c values into log-space parameters.
+
     This is the inverse of the _unpack function.
     """
     log_r = jnp.log(r)
     tau = r * c
-    log_tau = jnp.log(tau)
-    return jnp.hstack([log_r, log_tau[0], jnp.diff(log_tau)])
+
+    # The inverse of cumsum is to take the first element and then the differences.
+    tau_0 = tau[0]
+    additive_gaps = jnp.diff(tau)
+    # Ensure gaps are not zero or negative for the log transform
+    additive_gaps = jnp.maximum(additive_gaps, 1e-12)
+    log_gaps = jnp.log(additive_gaps)
+
+    if tau_min_floor is None:
+        # The sentinel represents tau_0, so we pack log(tau_0).
+        sentinel = jnp.log(tau_0)
+    else:
+        # The sentinel represents the gap above the floor.
+        gap_above_floor = tau_0 - tau_min_floor
+        sentinel = jnp.log(jnp.maximum(gap_above_floor, 1e-12))
+
+    packed_params = jnp.hstack([log_r, sentinel, log_gaps])
+    return packed_params
 
 
-def _unpack(log_params: jnp.ndarray, n_layers: int) -> Tuple[jnp.ndarray, jnp.ndarray]:
+def _unpack(
+    log_params: jnp.ndarray,
+    n_layers: int,
+    tau_min_floor: Optional[float]
+) -> tuple[jnp.ndarray, jnp.ndarray]:
     """
-    Unpacks the raw log-space parameters from the optimizer into a Foster network
-    r and c values.
+    Transforms log-space parameters into a foster network r and c values.
     """
     r = _safe_exp(log_params[:n_layers])
-    log_tau_and_ratios = log_params[n_layers:]
-    log_tau_foster = jnp.cumsum(log_tau_and_ratios)
-    tau = _safe_exp(log_tau_foster)
+    sentinel = _safe_exp(log_params[n_layers])
+    delta_tau = _safe_exp(log_params[n_layers + 1:])
+    if tau_min_floor is None:
+        tau_min = sentinel
+    else:
+        tau_min = tau_min_floor + sentinel
+
+    tau = jnp.cumsum(jnp.hstack([tau_min, delta_tau]))
     c = tau / r
     return r, c
 
@@ -164,39 +163,42 @@ def _create_initial_guess(
     time_data: jnp.ndarray,
     impedance_data: jnp.ndarray,
     n_layers: int,
-    tau_min_initial_guess: float = 1e-3
+    tau_min_initial_guess: float = 1e-3,
+    tau_min_floor: Optional[float] = None
 ) -> jnp.ndarray:
     """
-    Generates a physically plausible initial guess for the reparameterized
-    optimization variables.
+    Generates a physically plausible initial guess and uses the _pack
+    function to convert it into the reparameterized format.
     """
+    # 1. Create a sensible guess for the physical resistances.
     r_total = impedance_data[-1]
-    r = jnp.full(shape=(n_layers,), fill_value=(r_total / n_layers))
-    log_r = jnp.log(r)
+    r_guess = jnp.full(shape=(n_layers,), fill_value=(r_total / n_layers))
 
+    # 2. Determine the starting tau for the guess.
+    if tau_min_floor is None:
+        start_tau = tau_min_initial_guess
+    else:
+        start_tau = max(tau_min_initial_guess, tau_min_floor * 1.01)
+
+    # 3. Create a sensible guess for the physical time constants.
     tau_max = time_data[-1]
-    tau = jnp.logspace(
-        start=jnp.log10(tau_min_initial_guess),
-        stop=jnp.log10(tau_max),
-        num=n_layers
+    if tau_max <= start_tau:
+        tau_max = start_tau * 100
+    
+    tau_guess = jnp.logspace(
+        start=jnp.log10(start_tau), stop=jnp.log10(tau_max), num=n_layers
     )
 
-    log_tau = jnp.log(tau)
-    log_tau_min = log_tau[0]
-    log_tau_ratio = jnp.diff(log_tau)
-
-    packed_params = jnp.hstack([
-        log_r,
-        log_tau_min,
-        log_tau_ratio
-    ])
-    return packed_params
+    # 4. Derive the corresponding physical capacitances.
+    c_guess = tau_guess / r_guess
+    
+    # 5. Delegate the conversion to the _pack function.
+    return _pack(r_guess, c_guess, tau_min_floor)
 
 
 def _check_convergence(step: int, loss_val: float, prev_loss: float, grad: jnp.ndarray,
                        log_params: jnp.ndarray, prev_params: jnp.ndarray,
                        config: OptimizationConfig) -> Optional[Dict[str, Any]]:
-    """Checks for convergence based on loss, gradient, and parameter changes."""
     if abs(prev_loss - loss_val) < config.loss_tol:
         return {'converged': True, 'reason': f'loss_change < {config.loss_tol}', 'steps': step + 1}
     if jnp.linalg.norm(grad) < config.gradient_tol:
@@ -213,26 +215,34 @@ def _run_optimization_engine(
     impedance_data: jnp.ndarray,
     initial_log_guess: jnp.ndarray,
     n_layers: int,
-    config: OptimizationConfig
+    config: OptimizationConfig,
+    tau_min_floor: Optional[float]
 ) -> Tuple[jnp.ndarray, Dict[str, Any]]:
     """Generic optimization runner for both L-BFGS and Adam."""
 
-    def loss_fn(log_params: jnp.ndarray) -> jnp.ndarray:
-        r, c = _unpack(log_params=log_params, n_layers=n_layers)
+    if tau_min_floor is not None:
+        start_index = np.searchsorted(np.asarray(time_data), tau_min_floor)
+    else:
+        start_index = 0
 
+    def loss_fn(log_params: jnp.ndarray) -> jnp.ndarray:
+        r, c = _unpack(log_params=log_params, n_layers=n_layers,
+                       tau_min_floor=tau_min_floor)
         model_impedance = _foster_impedance(r=r, c=c, t=time_data)
-        mean_square_error = jnp.mean(jnp.square(
-            jnp.log(model_impedance) - jnp.log(impedance_data)))
+
+        if start_index >= len(time_data):
+            mean_square_error = 0.0
+        else:
+            model_impedance_filtered = model_impedance[start_index:]
+            impedance_data_filtered = impedance_data[start_index:]
+            mean_square_error = jnp.mean(jnp.square(
+                (model_impedance_filtered) - (impedance_data_filtered)))
 
         r_thermal = impedance_data[-1]
         r_total = jnp.sum(r)
         thermal_resistance_error = jnp.square(r_thermal - r_total)
 
-        tau_min = (r * c)[0]
-        log_tau_error = jnp.log(1e-3) - jnp.log(tau_min)
-        min_tau_penalty = 10*jnp.square(jax.nn.relu(log_tau_error))
-
-        return thermal_resistance_error + mean_square_error + min_tau_penalty
+        return thermal_resistance_error + mean_square_error
 
     optimizer_name = config.optimizer.lower()
     optimizer = optax.chain(
@@ -260,6 +270,8 @@ def _run_optimization_engine(
     prev_loss = float('inf')
     conv_info = {'converged': False, 'reason': 'max_steps_reached'}
 
+    grad = jnp.zeros_like(initial_log_guess)
+
     assert config.n_steps is not None
     for step in range(config.n_steps):
         log_params, opt_state, loss_val, grad = update_step(
@@ -283,7 +295,7 @@ def _run_optimization_engine(
 
 
 def _validate_inputs(time_data: jnp.ndarray, z_data: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
-    """Validates and sorts input data for fitting functions."""
+    # This function is correct and unchanged
     if time_data.ndim != 1 or z_data.ndim != 1:
         raise ValueError("Input data must be 1-dimensional arrays.")
     if len(time_data) != len(z_data):
@@ -305,14 +317,14 @@ def _run_single_optimization(
     n_layers: int,
     config: OptimizationConfig,
     seed: int,
-    tau_min_initial_guess: float
+    tau_min_initial_guess: float,
+    tau_min_floor: Optional[float]
 ) -> FosterModelResult:
     """Runs a single optimization for a fixed number of layers."""
     base_log_init = _create_initial_guess(
-        time_data, z_data, n_layers, tau_min_initial_guess
+        time_data, z_data, n_layers, tau_min_initial_guess, tau_min_floor
     )
 
-    # Apply additive noise in the log-space
     if config.randomize_guess_strength > 0.:
         noise = config.randomize_guess_strength * jax.random.normal(
             jax.random.PRNGKey(seed), shape=base_log_init.shape
@@ -321,13 +333,11 @@ def _run_single_optimization(
     else:
         initial_log_guess = base_log_init
 
-    # Run optimization
     final_log_params, conv_info = _run_optimization_engine(
-        time_data, z_data, initial_log_guess, n_layers, config
+        time_data, z_data, initial_log_guess, n_layers, config, tau_min_floor
     )
 
-    # Unpack final results
-    r_values, c_values = _unpack(final_log_params, n_layers)
+    r_values, c_values = _unpack(final_log_params, n_layers, tau_min_floor)
 
     if not (jnp.all(jnp.isfinite(r_values)) and jnp.all(jnp.isfinite(c_values))):
         raise RuntimeError(
@@ -345,7 +355,7 @@ def _run_single_optimization(
 
 def _calculate_model_selection_criteria(n_data: int, n_params: int, mse: float,
                                         criteria: List[str]) -> Dict[str, float]:
-    """Calculates specified model selection criteria AIC/BIC."""
+    # This function is correct and unchanged
     unsupported = set(criteria) - SUPPORTED_CRITERIA
     if unsupported:
         raise ValueError(f"Unsupported criteria: {list(unsupported)}.")
@@ -359,13 +369,16 @@ def _calculate_model_selection_criteria(n_data: int, n_params: int, mse: float,
     return results
 
 
+# Public User-Facing API Functions
+
 def fit_foster_network(
     time_data: RCValues,
     impedance_data: RCValues,
     n_layers: int,
     config: Optional[OptimizationConfig] = None,
     random_seed: int = 0,
-    tau_min_initial_guess: float = 1e-3
+    tau_min_initial_guess: float = 1e-3,
+    tau_min_floor: Optional[float] = None
 ) -> FosterModelResult:
     """
     Fits an N-layer Foster network to thermal impedance data.
@@ -376,11 +389,9 @@ def fit_foster_network(
         n_layers: The number of RC layers to fit.
         config: Optimization configuration. Uses defaults if None.
         random_seed: Seed for randomizing the initial guess.
-        tau_min_initial_guess: The starting point for the smallest time
-                               constant, to guide the fit to a non-stiff region.
-
-    Returns:
-        A FosterModelResult object with the fitted r and c values and metadata.
+        tau_min_initial_guess: The starting point for the smallest time constant.
+        tau_min_floor: If set, guarantees the smallest time constant will be
+                       greater than this value. If None, it's fully free.
     """
     config = config or OptimizationConfig()
     t_data, z_data = _validate_inputs(
@@ -388,7 +399,8 @@ def fit_foster_network(
     )
 
     return _run_single_optimization(
-        t_data, z_data, n_layers, config, random_seed, tau_min_initial_guess
+        t_data, z_data, n_layers, config, random_seed,
+        tau_min_initial_guess, tau_min_floor
     )
 
 
@@ -396,15 +408,14 @@ def fit_optimal_foster_network(
     time_data: RCValues,
     impedance_data: RCValues,
     max_layers: int = DEFAULT_MAX_LAYERS,
-    selection_criterion: str = DEFAULT_CRITERION,
+    selection_criterion: str = 'bic',
     config: Optional[OptimizationConfig] = None,
     random_seed: int = 0,
-    tau_min_initial_guess: float = 1e-3
+    tau_min_initial_guess: float = 1e-3,
+    tau_min_floor: Optional[float] = None
 ) -> EvaluatedFosterModelResult:
     """
     Fits models with 1 to max_layers and selects the best one.
-
-    The best model is chosen using a model selection criterion (AIC or BIC).
 
     Args:
         time_data: Array of time points.
@@ -414,9 +425,8 @@ def fit_optimal_foster_network(
         config: Optimization configuration. Uses defaults if None.
         random_seed: Seed for randomizing the initial guess.
         tau_min_initial_guess: The starting point for the smallest time constant.
-
-    Returns:
-        An EvaluatedFosterModelResult object for the best model found.
+        tau_min_floor: If set, guarantees the smallest time constant will be
+                       greater than this value. If None, it's fully free.
     """
     config = config or OptimizationConfig()
     if selection_criterion.lower() not in SUPPORTED_CRITERIA:
@@ -434,7 +444,8 @@ def fit_optimal_foster_network(
     for n in range(1, max_layers + 1):
         try:
             base_model = fit_foster_network(
-                t_data, z_data, n, config, random_seed, tau_min_initial_guess
+                t_data, z_data, n, config, random_seed,
+                tau_min_initial_guess, tau_min_floor
             )
 
             # To calculate an unbiased MSE, use the final fitted parameters

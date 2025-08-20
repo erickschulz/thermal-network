@@ -25,8 +25,8 @@ cells = worksheet["E6:E103"]
 impedance_data = np.array([row[0].value for row in cells])
 
 # define a custom config if needed, for
-# e.g. a different optimizer
-# config = tn.OptimizationConfig(optimizer='adam')
+# e.g. a different optimizer or randomization
+# config = tn.OptimizationConfig(randomize_guess_strength=0.3)
 
 # fit thermal model to data
 model = tn.fit_optimal_foster_network(
@@ -34,7 +34,8 @@ model = tn.fit_optimal_foster_network(
     impedance_data=impedance_data[:73],
     max_layers=10,
     # config=config, # pass your custom config here
-    tau_min_initial_guess=1e-3 
+    tau_min_initial_guess=1e-4,
+    # tau_min_floor= 1e-3
 )
 
 # e.g. of fitting a single network
@@ -74,8 +75,6 @@ tau_foster = foster_network.r * foster_network.c
 tau_cauer = cauer_network.r * cauer_network.c
 print("\nTime constants for foster:")
 print(tau_foster)
-print("\nTime constants for cauer:")
-print(tau_cauer)
 
 plt.figure(figsize=(10, 6))
 plt.scatter(time_data, impedance_data,

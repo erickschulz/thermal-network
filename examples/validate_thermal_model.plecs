@@ -68,7 +68,7 @@ Plecs {
   OperatingPointNodalVoltageNewtonTolerance "1e-6"
   SpiceTemperature "27"
   Schematic {
-    Location      [1993, 144; 2996, 906]
+    Location      [2409, 179; 3412, 941]
     ZoomFactor    1
     SliderPosition [0, 0]
     ShowBrowser   off
@@ -294,11 +294,11 @@ Plecs {
       Flipped       off
       LabelPosition south
       Frame         [-15, -15; 15, 15]
-      Location      [2225, 55; 3583, 981]
-      State         "AAAA/wAAAAD9AAAAAgAAAAEAAADgAAADKfwCAAAAA/sAAAAQAFoAbwBvA"
+      Location      [2165, 129; 3579, 798]
+      State         "AAAA/wAAAAD9AAAAAgAAAAEAAAStAAACKPwCAAAAA/sAAAAQAFoAbwBvA"
 "G0AQQByAGUAYQAAAAAA/////wAAADQA////+wAAABQAUwBhAHYAZQBkAFYAaQBlAHcAcwAAAAAcAA"
-"AA4wAAAGYA////+wAAAAwAVAByAGEAYwBlAHMBAAAAHAAAAykAAABmAP///wAAAAMAAAVOAAAAWPw"
-"BAAAAAfsAAAAUAEQAYQB0AGEAVwBpAGQAZwBlAHQBAAAAAAAABU4AAABCAP///wAABG0AAAMpAAAA"
+"AA4wAAAGYA////+wAAAAwAVAByAGEAYwBlAHMAAAAAHAAAAigAAABmAP///wAAAAMAAAWGAAAAhvw"
+"BAAAAAfsAAAAUAEQAYQB0AGEAVwBpAGQAZwBlAHQBAAAAAAAABYYAAABCAP///wAABYYAAAH6AAAA"
 "BAAAAAQAAAAIAAAACPwAAAABAAAAAgAAAAEAAAAOAFQAbwBvAGwAQgBhAHIBAAAAAP////8AAAAAA"
 "AAAAA=="
       SavedViews    "AAAAAgAAAAA="
@@ -542,4 +542,4 @@ Plecs {
     }
   }
 }
-DemoSignature "EatXiH6jJky6qL/+zp/gbmvLeTmm3SLzfxZsXWIISW0="
+DemoSignature "idmgq9hU6MSJUqWqaQUUtkF4dymkHY41/yKUQsqUSsA="
