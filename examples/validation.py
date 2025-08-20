@@ -24,44 +24,33 @@ time_data = np.array([row[0].value for row in cells])
 cells = worksheet["E6:E103"]
 impedance_data = np.array([row[0].value for row in cells])
 
-# define a custom config if needed, for
-# e.g. a different optimizer or randomization
-# config = tn.OptimizationConfig(randomize_guess_strength=0.3)
-
-# fit thermal model to data
-model = tn.fit_optimal_foster_network(
+# fit thermal model to impedance data
+model_selection_result = tn.fit_optimal_foster_network(
     time_data=time_data[:73],
     impedance_data=impedance_data[:73],
     max_layers=10,
-    # config=config, # pass your custom config here
-    tau_floor= 1e-3
+    # tau_floor=1e-3  #enfore a 1ms stability constraint
 )
 
-# e.g. of fitting a single network
-# model = tn.fit_foster_network(
-#     time_data=time_data[:73],
-#     impedance_data=impedance_data[:73],
-#     n_layers=8
-# )
-
-# extract foster model
-best_model = model.best_model
+best_model = model_selection_result.best_model
 foster_network = best_model.network
+
 # convert foster model to cauer model
 cauer_network = tn.foster_to_cauer(foster_network)
 
 tau_foster = foster_network.r * foster_network.c
-tau_cauer = cauer_network.r * cauer_network.c
 
 # evaluate the model time impedance
 model_impedance = tn.foster_impedance_time_domain(
     network=foster_network, t_values=time_data)
-mse = np.sum(np.square(model_impedance - impedance_data[:len(model_impedance)]))
+# Note: mse here is calculated on all data, which is fine for a final check
+mse = np.mean(np.square(model_impedance -
+              impedance_data[:len(model_impedance)]))
 
 print("\nFit completed.")
 print(f"Status: {best_model.convergence_info['converged']}")
-print(f"Final loss: {best_model.final_loss:.9f}")
-print(f"Final MSE: {mse:.9f}")
+print(f"Final loss (truncated): {best_model.final_loss:.9f}")
+print(f"Final MSE (full curve): {mse:.9f}")
 print("\nFoster network parameters:")
 print(foster_network)
 print("\nCauer network parameters:")
@@ -78,11 +67,15 @@ plt.scatter(time_data, impedance_data,
             label='Impedance Data', color='red', marker='o', s=30, alpha=0.5)
 plt.plot(time_data, model_impedance,
          label='Fitted Foster Model', color='blue', linewidth=2)
+
 plt.title('Thermal Impedance: Model vs. Data')
 plt.xlabel('Time (s)')
 plt.ylabel('Impedance (°C/W)')
+
+# This is where the log scaling is applied
 plt.xscale('log')
 plt.yscale('log')
+
 plt.legend()
 plt.grid(True, which='both', linestyle='--', linewidth=0.5)
 plt.show()
@@ -92,7 +85,6 @@ plt.show()
 plecs_port = 1080
 plecs_model_name = "validate_thermal_model"
 plecs = xmlrpc.client.ServerProxy(f"http://localhost:{plecs_port}").plecs
-
 print("\nSimulating : " + f"{plecs_model_name}.plecs")
 # plecs.load(plecs_model_name) # assume model is opened in plecs already
 

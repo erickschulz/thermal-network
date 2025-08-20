@@ -111,7 +111,6 @@ def _safe_exp(x: jnp.ndarray) -> jnp.ndarray:
 def _pack(r: jnp.ndarray, c: jnp.ndarray, tau_floor: Optional[float] = None) -> jnp.ndarray:
     """
     Transforms Foster network r and c values into log-space parameters.
-
     This is the inverse of the _unpack function.
     """
     log_r = jnp.log(r)
@@ -130,22 +129,29 @@ def _pack(r: jnp.ndarray, c: jnp.ndarray, tau_floor: Optional[float] = None) -> 
     return packed_params
 
 
-def _unpack(log_params: jnp.ndarray,
-            n_layers: int,
-            tau_floor: Optional[float]
-            ) -> tuple[jnp.ndarray, jnp.ndarray]:
+def _unpack(
+    log_params: jnp.ndarray,
+    n_layers: int,
+    tau_floor: Optional[float]
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """
-    Transforms log-space parameters into a foster network r and c values.
+    Transforms log-space parameters into a Foster network r and c values.
     """
-    r = _safe_exp(log_params[:n_layers])
-    sentinel = _safe_exp(log_params[n_layers])
-    delta_tau = _safe_exp(log_params[n_layers + 1:])
-    if tau_floor is None:
-        tau_min = sentinel
-    else:
-        tau_min = tau_floor + sentinel
+    log_r = log_params[:n_layers]
+    first_tau_param = log_params[n_layers]
+    log_gaps = log_params[n_layers + 1:]
 
-    tau = jnp.cumsum(jnp.hstack([tau_min, delta_tau]))
+    r = _safe_exp(log_r)
+
+    if tau_floor is None:
+        tau_0 = _safe_exp(first_tau_param)
+    else:
+        gap_above_floor = _safe_exp(first_tau_param)
+        tau_0 = tau_floor + gap_above_floor
+
+    positive_gaps = _safe_exp(log_gaps)
+    tau = jnp.cumsum(jnp.hstack([tau_0, positive_gaps]))
+
     c = tau / r
     return r, c
 
@@ -156,11 +162,16 @@ def _create_initial_guess(
     n_layers: int,
     tau_floor: Optional[float] = None
 ) -> jnp.ndarray:
+    """
+    Generates a physically plausible initial guess and calls _pack
+    to convert it into the reparameterized format.
+    """
     r_total = impedance_data[-1]
     r_guess = jnp.full(shape=(n_layers,), fill_value=(r_total / n_layers))
 
     if tau_floor is None:
-        start_tau = max(1e-6, float(time_data[0]))
+        start_tau = max(
+            1e-6, float(time_data[1]) if len(time_data) > 1 else 1e-6)
     else:
         start_tau = tau_floor * 1.01
 
@@ -207,23 +218,23 @@ def _run_optimization_engine(
         start_index = 0
 
     def loss_fn(log_params: jnp.ndarray) -> jnp.ndarray:
-        r, c = _unpack(log_params=log_params, n_layers=n_layers,
-                       tau_floor=tau_floor)
+        r, c = _unpack(log_params=log_params,
+                       n_layers=n_layers, tau_floor=tau_floor)
         model_impedance = _foster_impedance(r=r, c=c, t=time_data)
 
         if start_index >= len(time_data):
             mean_square_error = 0.0
         else:
-            model_impedance_truncated = model_impedance[start_index:]
+            model_impedance_filtered = model_impedance[start_index:]
             impedance_data_filtered = impedance_data[start_index:]
-            mean_square_error = jnp.mean(jnp.square(
-                (model_impedance_truncated - impedance_data_filtered)/impedance_data_filtered))
+            log_error = jnp.log(model_impedance_filtered) - jnp.log(impedance_data_filtered)
+            mean_square_error = jnp.mean(optax.losses.log_cosh(log_error))
 
         r_thermal = impedance_data[-1]
         r_total = jnp.sum(r)
         thermal_resistance_error = jnp.square(r_thermal - r_total)
 
-        return thermal_resistance_error + mean_square_error
+        return mean_square_error + thermal_resistance_error
 
     optimizer_name = config.optimizer.lower()
     optimizer = optax.chain(
@@ -250,7 +261,6 @@ def _run_optimization_engine(
     prev_params = log_params
     prev_loss = float('inf')
     conv_info = {'converged': False, 'reason': 'max_steps_reached'}
-
     grad = jnp.zeros_like(initial_log_guess)
 
     assert config.n_steps is not None
@@ -276,7 +286,6 @@ def _run_optimization_engine(
 
 
 def _validate_inputs(time_data: jnp.ndarray, z_data: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
-    # This function is correct and unchanged
     if time_data.ndim != 1 or z_data.ndim != 1:
         raise ValueError("Input data must be 1-dimensional arrays.")
     if len(time_data) != len(z_data):
@@ -335,7 +344,6 @@ def _run_single_optimization(
 
 def _calculate_model_selection_criteria(n_data: int, n_params: int, mse: float,
                                         criteria: List[str]) -> Dict[str, float]:
-    # This function is correct and unchanged
     unsupported = set(criteria) - SUPPORTED_CRITERIA
     if unsupported:
         raise ValueError(f"Unsupported criteria: {list(unsupported)}.")
@@ -348,8 +356,6 @@ def _calculate_model_selection_criteria(n_data: int, n_params: int, mse: float,
         results['bic'] = float(-2 * log_likelihood + n_params * np.log(n_data))
     return results
 
-
-# Public User-Facing API Functions
 
 def fit_foster_network(
     time_data: RCValues,
@@ -369,7 +375,7 @@ def fit_foster_network(
         config: Optimization configuration. Uses defaults if None.
         random_seed: Seed for randomizing the initial guess.
         tau_floor: If set, guarantees the smallest time constant will be
-                       greater than this value. If None, it's fully free.
+                   greater than this value. If None, it's fully free.
     """
     config = config or OptimizationConfig()
     t_data, z_data = _validate_inputs(
@@ -401,7 +407,7 @@ def fit_optimal_foster_network(
         config: Optimization configuration. Uses defaults if None.
         random_seed: Seed for randomizing the initial guess.
         tau_floor: If set, guarantees the smallest time constant will be
-                       greater than this value. If None, it's fully free.
+                   greater than this value. If None, it's fully free.
     """
     config = config or OptimizationConfig()
     if selection_criterion.lower() not in SUPPORTED_CRITERIA:
@@ -434,11 +440,11 @@ def fit_optimal_foster_network(
             )
 
             if tau_floor is not None:
-                start_index = np.searchsorted(
-                    np.asarray(t_data), tau_floor)
-                mse_truncated = jnp.mean(jnp.square(
-                    final_model_z[start_index:] - z_data[start_index:]))
-                log_message += f", MSE_truncated: {mse_truncated:.9f}"
+                start_index = np.searchsorted(np.asarray(t_data), tau_floor)
+                if start_index < len(t_data):
+                    mse_truncated = jnp.mean(jnp.square(
+                        final_model_z[start_index:] - z_data[start_index:]))
+                    log_message += f", Truncated MSE: {mse_truncated:.9f}"
 
             logger.info(log_message)
 
