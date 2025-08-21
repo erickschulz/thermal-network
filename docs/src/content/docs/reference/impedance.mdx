@@ -16,9 +16,10 @@ Calculates the time-domain thermal impedance Z<sub>th</sub>(t) for a Foster netw
 
 The impedance is calculated as:
 
-**Z<sub>th</sub>(t) = Σ<sub>i</sub> R<sub>i</sub> · (1 - e<sup>-t/τ<sub>i</sub></sup>)**
-
-where τ<sub>i</sub> = R<sub>i</sub> · C<sub>i</sub>.
+$$ 
+Z_{th}(t) = \sum_i R_i (1 - e^{-t/\tau_i})
+$$
+where $\tau_i = R_i \cdot C_i$.
 
 **Parameters:**
 - `network`: `FosterNetwork` - The Foster network model.
@@ -29,7 +30,10 @@ where τ<sub>i</sub> = R<sub>i</sub> · C<sub>i</sub>.
 
 ## Frequency Domain Impedance Z(s)
 
-For frequency-domain analysis, the impedance Z(s) is calculated at complex frequency points s = jω.
+For frequency-domain analysis, the impedance Z(s) is calculated at provided complex frequency points 
+$$
+s = j\omega.
+$$
 
 <Tabs>
 <TabItem label="Foster">
@@ -41,7 +45,9 @@ foster_impedance_freq_domain(network, s_values)
 
 Computes the complex impedance for a Foster network as the sum of parallel RC branches:
 
-**Z(s) = Σ<sub>i</sub> R<sub>i</sub> / (1 + s R<sub>i</sub> C<sub>i</sub>)**
+$$
+Z(s) = \sum_i R_i / (1 + sR_iC_i).
+$$
 
 **Parameters:**
 - `network`: `FosterNetwork` - The Foster network model.
