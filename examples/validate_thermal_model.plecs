@@ -1,9 +1,9 @@
 Plecs {
   Name          "validate_thermal_model"
-  Version       "5.0"
+  Version       "4.8"
   CircuitModel  "ContStateSpace"
   StartTime     "0.0"
-  TimeSpan      "0.5"
+  TimeSpan      "1"
   Timeout       ""
   Solver        "radau"
   MaxStep       "1e-3"
@@ -31,7 +31,6 @@ Plecs {
   InitializationCommands ""
   InitialState  "1"
   SystemState   ""
-  JacobianComputation "2"
   TaskingMode   "1"
   TaskConfigurations ""
   CodeGenParameterInlining "2"
@@ -53,22 +52,8 @@ Plecs {
   AlgebraicLoopTolerance "1e-6"
   ScriptsDialogGeometry ""
   ScriptsDialogSplitterPos "0"
-  MixedSignalSolverBypassOperatingPoint "1"
-  MixedSignalSolverInitialConditions "2"
-  MixedSignalSolverMaxNewtonIterations "30"
-  MixedSignalSolverNumThreads "-1"
-  MixedSignalSolverStartupMaxSyncSteps "10"
-  MixedSignalMatrixFactorization "1"
-  MixedSignalPreconditioner "1"
-  MixedSignalSolverDevelopmentOption "1"
-  OperatingPointMaxNewtonIterations "200"
-  OperatingPointLinearSolver "1"
-  OperatingPointRelativeNewtonTolerance "1e-3"
-  OperatingPointAbsoluteNewtonTolerance "1e-12"
-  OperatingPointNodalVoltageNewtonTolerance "1e-6"
-  SpiceTemperature "27"
   Schematic {
-    Location      [2328, 158; 3331, 920]
+    Location      [2713, 123; 3716, 885]
     ZoomFactor    1
     SliderPosition [0, 0]
     ShowBrowser   off
@@ -192,7 +177,6 @@ Plecs {
       Flipped       off
       LabelPosition south
       CommentOut    DisabledOpenCircuit
-      Frame         [-2, -10; 7, 10]
       Parameter {
         Variable      "Width"
         Value         "[1 3]"
@@ -208,7 +192,6 @@ Plecs {
       Flipped       on
       LabelPosition south
       CommentOut    DisabledOpenCircuit
-      Frame         [-7, -10; 2, 10]
       Parameter {
         Variable      "Width"
         Value         "[3 1]"
@@ -278,7 +261,6 @@ Plecs {
       Direction     right
       Flipped       off
       LabelPosition south
-      Frame         [-2, -15; 7, 15]
       Parameter {
         Variable      "Width"
         Value         "3"
@@ -293,17 +275,20 @@ Plecs {
       Direction     up
       Flipped       off
       LabelPosition south
-      Frame         [-15, -15; 15, 15]
-      Location      [2165, 129; 3579, 798]
-      State         "AAAA/wAAAAD9AAAAAgAAAAEAAAStAAACKPwCAAAAA/sAAAAQAFoAbwBvA"
+      Location      [2073, 109; 3522, 1044]
+      State         "AAAA/wAAAAD9AAAAAgAAAAEAAANRAAACjPwCAAAAA/sAAAAQAFoAbwBvA"
 "G0AQQByAGUAYQAAAAAA/////wAAADQA////+wAAABQAUwBhAHYAZQBkAFYAaQBlAHcAcwAAAAAcAA"
-"AA4wAAAGYA////+wAAAAwAVAByAGEAYwBlAHMAAAAAHAAAAigAAABmAP///wAAAAMAAAWGAAAAhvw"
-"BAAAAAfsAAAAUAEQAYQB0AGEAVwBpAGQAZwBlAHQBAAAAAAAABYYAAABCAP///wAABYYAAAH6AAAA"
+"AA4wAAAGYA////+wAAAAwAVAByAGEAYwBlAHMAAAAAHAAAAowAAABmAP///wAAAAMAAAWpAAAAWPw"
+"BAAAAAfsAAAAUAEQAYQB0AGEAVwBpAGQAZwBlAHQBAAAAAAAABakAAABCAP///wAABakAAAMyAAAA"
 "BAAAAAQAAAAIAAAACPwAAAABAAAAAgAAAAEAAAAOAFQAbwBvAGwAQgBhAHIBAAAAAP////8AAAAAA"
 "AAAAA=="
       SavedViews    "AAAAAgAAAAA="
-      HeaderState   "{\"DefaultSecSize\":0,\"FirstSecSize\":254,\"Labels\":[\""
-"Delta\"],\"VisualIdxs\":[3]}"
+      HeaderState   "AAAA/wAAAAAAAAABAAAAAQAAAAAAAAAAAAAAAAAAAAAL/gMAAAAJAAAAC"
+"QAAAGQAAAAIAAAAZAAAAAcAAABkAAAABgAAAGQAAAAFAAAAZAAAAAQAAABkAAAAAwAAAGQAAAACAA"
+"AAZAAAAAEAAABkAAAFqQAAAAsBAAABAAAAAAAAAAAAAAAAZP////8AAACBAAAAAAAAAAsAAABLAAA"
+"AAQAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAQAAAAAAAAAA"
+"AAAAAQAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAQAAAAAAA"
+"AVeAAAAAQAAAAAAAAPoAAAAABM="
       PlotPalettes  "AAAAAQAAAAYAAAACAAAAAwAAAAIC//8u4P//zMwAAAL//y7g//+ZmQAAA"
 "AAAAgL//wAA/////wAAAv//AAD//8zMAAAAAAACAv//T7D/////AAAC//9PsP//zMwAAAAAAAMAAA"
 "ACAAAAAAACAAAAAAACAAAAAAADAAAAAgAAAAEAAAABAAAAAgAAAAEAAAABAAAAAgAAAAEAAAABAAA"
@@ -542,4 +527,4 @@ Plecs {
     }
   }
 }
-DemoSignature "QrcDVe/qfwtPUdTOYNBpaeV/3jtJdYMlwK8LIQWtUBA="
+DemoSignature "009K2Stccsmuujrn1DB9AZUsz7z1S5dZ3zevSgx2mH4="

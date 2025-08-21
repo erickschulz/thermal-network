@@ -1,15 +1,11 @@
-import jax.numpy as jnp
-import jax
 import numpy as np
 import matplotlib.pyplot as plt
 
 # to import data from excel
 from openpyxl import load_workbook, workbook
 from openpyxl.worksheet import worksheet
-
 # to interact with PLECS
 import xmlrpc.client
-
 # thermal model fitting package
 import thermal_network as tn
 
@@ -34,11 +30,10 @@ model_selection_result = tn.fit_optimal_foster_network(
 
 best_model = model_selection_result.best_model
 foster_network = best_model.network
+tau_foster = foster_network.r * foster_network.c
 
 # convert foster model to cauer model
 cauer_network = tn.foster_to_cauer(foster_network)
-
-tau_foster = foster_network.r * foster_network.c
 
 # evaluate the model time impedance
 model_impedance = tn.foster_impedance_time_domain(
@@ -67,21 +62,17 @@ plt.scatter(time_data, impedance_data,
             label='Impedance Data', color='red', marker='o', s=30, alpha=0.5)
 plt.plot(time_data, model_impedance,
          label='Fitted Foster Model', color='blue', linewidth=2)
-
 plt.title('Thermal Impedance: Model vs. Data')
 plt.xlabel('Time (s)')
 plt.ylabel('Impedance (°C/W)')
-
-# This is where the log scaling is applied
 plt.xscale('log')
 plt.yscale('log')
-
 plt.legend()
 plt.grid(True, which='both', linestyle='--', linewidth=0.5)
 plt.show()
 
-# Run in PLECS
-# The following lines require PLECS to be running with XML-RPC enabled
+# run in PLECS
+# the following lines require PLECS to be running with XML-RPC enabled
 plecs_port = 1080
 plecs_model_name = "validate_thermal_model"
 plecs = xmlrpc.client.ServerProxy(f"http://localhost:{plecs_port}").plecs

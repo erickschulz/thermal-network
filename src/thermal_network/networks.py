@@ -11,18 +11,12 @@ and testable codebase.
 """
 
 from dataclasses import dataclass
-from typing import List, Union, Tuple
+from typing import Tuple
 
 import numpy as np
-import jax.numpy as jnp
-
-# Type Aliases for Clarity
-
-RCValues = Union[List[float], np.ndarray, jnp.ndarray]
-"""Type alias for resistance and capacitance value inputs."""
 
 
-def _validate_rc_values(r_values: RCValues, c_values: RCValues) -> Tuple[jnp.ndarray, jnp.ndarray]:
+def _validate_rc_values(r_values: np.ndarray, c_values: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """
     Validates and converts resistance and capacitance value inputs.
 
@@ -31,7 +25,7 @@ def _validate_rc_values(r_values: RCValues, c_values: RCValues) -> Tuple[jnp.nda
         c_values: A list or array of capacitance values.
 
     Returns:
-        A tuple containing the validated JAX arrays for resistances and capacitances.
+        A tuple containing the validated NumPy arrays for resistances and capacitances.
 
     Raises:
         ValueError: If inputs have different lengths or contain non-positive values.
@@ -39,10 +33,10 @@ def _validate_rc_values(r_values: RCValues, c_values: RCValues) -> Tuple[jnp.nda
     if len(r_values) != len(c_values):
         raise ValueError("Resistor and Capacitor lists must have the same length.")
 
-    r_array = jnp.asarray(r_values, dtype=float)
-    c_array = jnp.asarray(c_values, dtype=float)
+    r_array = np.asarray(r_values, dtype=float)
+    c_array = np.asarray(c_values, dtype=float)
 
-    if jnp.any(r_array <= 0) or jnp.any(c_array <= 0):
+    if np.any(r_array <= 0) or np.any(c_array <= 0):
         raise ValueError("All resistance and capacitance values must be positive.")
 
     return r_array, c_array
@@ -60,15 +54,15 @@ class CauerNetwork:
     arrays of resistance and capacitance values.
 
     Attributes:
-        r (jnp.ndarray): Array of resistance values.
-        c (jnp.ndarray): Array of capacitance values.
+        r (np.ndarray): Array of resistance values.
+        c (np.ndarray): Array of capacitance values.
         order (int): The number of RC pairs in the network.
     """
-    r: jnp.ndarray
-    c: jnp.ndarray
+    r: np.ndarray
+    c: np.ndarray
     order: int
 
-    def __init__(self, r_values: RCValues, c_values: RCValues):
+    def __init__(self, r_values: np.ndarray, c_values: np.ndarray):
         """
         Initializes the CauerNetwork.
 
@@ -92,15 +86,15 @@ class FosterNetwork:
     arrays of resistance and capacitance values.
 
     Attributes:
-        r (jnp.ndarray): Array of resistance values.
-        c (jnp.ndarray): Array of capacitance values.
+        r (np.ndarray): Array of resistance values.
+        c (np.ndarray): Array of capacitance values.
         order (int): The number of RC pairs in the network.
     """
-    r: jnp.ndarray
-    c: jnp.ndarray
+    r: np.ndarray
+    c: np.ndarray
     order: int
 
-    def __init__(self, r_values: RCValues, c_values: RCValues):
+    def __init__(self, r_values: np.ndarray, c_values: np.ndarray):
         """
         Initializes the FosterNetwork.
 
@@ -113,10 +107,27 @@ class FosterNetwork:
         # Sort by time constant for a canonical representation
         if r_array.size > 0:
             tau = r_array * c_array
-            sort_indices = jnp.argsort(tau)
+            sort_indices = np.argsort(tau)
             r_array = r_array[sort_indices]
             c_array = c_array[sort_indices]
 
         object.__setattr__(self, 'r', r_array)
         object.__setattr__(self, 'c', c_array)
         object.__setattr__(self, 'order', len(r_array))
+
+
+    def __repr__(self) -> str:
+        """
+        Provides a detailed string representation of the Foster network.
+        """
+        header = f"FosterNetwork(order={self.order})"
+        if self.order == 0:
+            return header
+
+        tau = self.r * self.c
+        rows = ["  Layer | Resistance (R) | Capacitance (C) | Time Constant (τ)"]
+        rows.append("  " + "-" * 60)
+        for i in range(self.order):
+            row = f"  {i+1:<5} | {self.r[i]:<14.6f} | {self.c[i]:<15.6f} | {tau[i]:<17.6f}"
+            rows.append(row)
+        return f"{header}\n" + "\n".join(rows)

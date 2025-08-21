@@ -1,3 +1,5 @@
+from importlib.metadata import version as _version
+
 from .conversions import cauer_to_foster, foster_to_cauer
 from .networks import CauerNetwork, FosterNetwork
 from .fitting import fit_foster_network, fit_optimal_foster_network, OptimizationConfig
@@ -7,7 +9,7 @@ from .impedance import (
     cauer_impedance_freq_domain,
 )
 
-__all__ = [
+__all__ = (
     "CauerNetwork",
     "FosterNetwork",
     "cauer_to_foster",
@@ -18,5 +20,7 @@ __all__ = [
     "foster_impedance_freq_domain",
     "cauer_impedance_freq_domain",
     "OptimizationConfig",
-]
+)
+
+__version__ = _version("thermal-network")
 
