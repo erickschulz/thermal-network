@@ -2,36 +2,50 @@
 title: Quickstart
 ---
 
-This is a quick example that shows how to fit a Foster network model to thermal impedance data.
+This is a quick example that shows how to fit a Foster network model to thermal impedance data from a spreadsheet.
 
-We need to import the necessary functions and generate some noisy data from a given 2-layer model.
+First, we need to import the necessary packages and load the data. The `thermal-network` package does not include `openpyxl` as a dependency. To run this example, you will need to install it: `pip install openpyxl`.
 
 ```python
 import numpy as np
-from thermal_network.networks import FosterNetwork
-from thermal_network.impedance import foster_impedance_time_domain
-from thermal_network.fitting import fit_foster_network
+from openpyxl import load_workbook, workbook
+from thermal_network.fitting import fit_optimal_foster_network
+from thermal_network.conversions import foster_to_cauer
 
-# 1. Define a "true" network to generate data
-true_network = FosterNetwork(r_values=[0.7, 0.3], c_values=[1.0, 10.0])
+# 1. Load data from the spreadsheet
+# The excel file should be in the same folder as the script
+workbook = load_workbook('excel_example.xlsx', read_only=True, data_only=True)
+worksheet = workbook["Thermal Data"]
 
-# 2. Generate synthetic impedance data from this network
-time_data = np.logspace(-1, 2, 150)
-impedance_data = foster_impedance_time_domain(true_network, time_data)
+# load time data
+cells = worksheet["C6:C103"]
+time_data = np.array([row[0].value for row in cells])
 
-# Add some noise to make it realistic
-np.random.seed(0)
-noisy_data = impedance_data + (0.005 * np.random.randn(impedance_data.shape[0]))
+# load temperature data
+cells = worksheet["E6:E103"]
+impedance_data = np.array([row[0].value for row in cells])
 
-# 3. Fit a 2-layer model to the noisy data
-fitted_model = fit_foster_network(
-    time_data, 
-    noisy_data, 
-    n_layers=2
+# 2. Fit a model to the data
+# here we fit an optimal model up to 10 layers
+model = fit_optimal_foster_network(
+    time_data=time_data[:73],
+    impedance_data=impedance_data[:73],
+    max_layers=10,
+    tau_floor= 1e-3
 )
 
+# 3. Convert the resulting Foster network to the Cauer topology
+best_model = model.best_model
+foster_network = best_model.network
+cauer_network = foster_to_cauer(foster_network)
+
 print("Fit completed!")
-print(f"Convergence was successful: {fitted_model.convergence_info['converged']}")
-print(f"Final Loss (MSE): {fitted_model.final_loss:.6f}")
-print("\nFitted Network Parameters:")
-print(fitted_model.network)
+print(f"Convergence was successful: {best_model.convergence_info['converged']}")
+print(f"Final Loss (MSE): {best_model.final_loss:.6f}")
+print("\nFitted Foster Network Parameters:")
+print(foster_network)
+print("\nEquivalent Cauer Network Parameters:")
+print(cauer_network)
+```
+
+The `fit_optimal_foster_network` function returns the best model found, which is a Foster network. We can then convert it to a Cauer network using the `foster_to_cauer` function.
