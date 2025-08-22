@@ -2,12 +2,10 @@
 This module defines the core data structures for thermal network models.
 
 The primary data structures, `CauerNetwork` and `FosterNetwork`, are
-implemented as dataclasses to store resistance (R) and capacitance (C)
-values. These classes serve as plain data containers, with all functional
+implemented as dataclasses to store resistances (r) and capacitances (c).
+These classes serve as plain data containers, with all functional
 operations, such as impedance calculation and network conversion, handled
-by dedicated functions in other modules. This approach favors composition
-and functional programming over inheritance, leading to a more modular
-and testable codebase.
+by dedicated functions in other modules.
 """
 
 from dataclasses import dataclass
@@ -16,13 +14,13 @@ from typing import Tuple
 import numpy as np
 
 
-def _validate_rc_values(r_values: np.ndarray, c_values: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+def _validate_rc_values(r: np.ndarray, c: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """
     Validates and converts resistance and capacitance value inputs.
 
     Args:
-        r_values: A list or array of resistance values.
-        c_values: A list or array of capacitance values.
+        r: A list or array of resistance values.
+        c: A list or array of capacitance values.
 
     Returns:
         A tuple containing the validated NumPy arrays for resistances and capacitances.
@@ -30,19 +28,19 @@ def _validate_rc_values(r_values: np.ndarray, c_values: np.ndarray) -> Tuple[np.
     Raises:
         ValueError: If inputs have different lengths or contain non-positive values.
     """
-    if len(r_values) != len(c_values):
-        raise ValueError("Resistor and Capacitor lists must have the same length.")
+    if len(r) != len(c):
+        raise ValueError(
+            "Resistor and capacitor lists must have the same length.")
 
-    r_array = np.asarray(r_values, dtype=float)
-    c_array = np.asarray(c_values, dtype=float)
+    r = np.asarray(r, dtype=float)
+    c = np.asarray(c, dtype=float)
 
-    if np.any(r_array <= 0) or np.any(c_array <= 0):
-        raise ValueError("All resistance and capacitance values must be positive.")
+    if np.any(r <= 0) or np.any(c <= 0):
+        raise ValueError(
+            "All resistances and capacitances must be positive.")
 
-    return r_array, c_array
+    return r, c
 
-
-# Core Network Model Classes
 
 @dataclass(frozen=True)
 class CauerNetwork:
@@ -54,15 +52,15 @@ class CauerNetwork:
     arrays of resistance and capacitance values.
 
     Attributes:
-        r (np.ndarray): Array of resistance values.
-        c (np.ndarray): Array of capacitance values.
+        r: Array of resistance values.
+        c: Array of capacitance values.
         order (int): The number of RC pairs in the network.
     """
     r: np.ndarray
     c: np.ndarray
     order: int
 
-    def __init__(self, r_values: np.ndarray, c_values: np.ndarray):
+    def __init__(self, r: np.ndarray, c: np.ndarray):
         """
         Initializes the CauerNetwork.
 
@@ -70,11 +68,30 @@ class CauerNetwork:
             r_values: A list or array of resistance values.
             c_values: A list or array of capacitance values.
         """
-        r_array, c_array = _validate_rc_values(r_values, c_values)
+        r_array, c_array = _validate_rc_values(r, c)
 
         object.__setattr__(self, 'r', r_array)
         object.__setattr__(self, 'c', c_array)
         object.__setattr__(self, 'order', len(r_array))
+
+    def __repr__(self) -> str:
+        """
+        Provides a detailed string representation of the Cauer network.
+        """
+        total_width = 46
+
+        title = f"CauerNetwork (order={self.order})"
+        header = title.center(total_width)
+        if self.order == 0:
+            return header
+
+        rows = [
+            " Layer | Resistance (R) | Capacitance (C)"]
+        rows.append(" " + "-" * (total_width - 1))  # Adjusted for consistency
+        for i in range(self.order):
+            row = f" {i+1:<5} | {self.r[i]:<14.6f} | {self.c[i]:<15.6f}"
+            rows.append(row)
+        return f"{header}\n" + "\n".join(rows)
 
 
 @dataclass(frozen=True)
@@ -86,23 +103,23 @@ class FosterNetwork:
     arrays of resistance and capacitance values.
 
     Attributes:
-        r (np.ndarray): Array of resistance values.
-        c (np.ndarray): Array of capacitance values.
+        r: Array of resistance values.
+        c: Array of capacitance values.
         order (int): The number of RC pairs in the network.
     """
     r: np.ndarray
     c: np.ndarray
     order: int
 
-    def __init__(self, r_values: np.ndarray, c_values: np.ndarray):
+    def __init__(self, r: np.ndarray, c: np.ndarray):
         """
         Initializes the FosterNetwork.
 
         Args:
-            r_values: A list or array of resistance values.
-            c_values: A list or array of capacitance values.
+            r: A list or array of resistance values.
+            c: A list or array of capacitance values.
         """
-        r_array, c_array = _validate_rc_values(r_values, c_values)
+        r_array, c_array = _validate_rc_values(r, c)
 
         # Sort by time constant for a canonical representation
         if r_array.size > 0:
@@ -115,19 +132,22 @@ class FosterNetwork:
         object.__setattr__(self, 'c', c_array)
         object.__setattr__(self, 'order', len(r_array))
 
-
     def __repr__(self) -> str:
         """
         Provides a detailed string representation of the Foster network.
         """
-        header = f"FosterNetwork(order={self.order})"
+        total_width = 62
+
+        title = f"FosterNetwork (order={self.order})"
+        header = title.center(total_width)
         if self.order == 0:
             return header
 
         tau = self.r * self.c
-        rows = ["  Layer | Resistance (R) | Capacitance (C) | Time Constant (τ)"]
-        rows.append("  " + "-" * 60)
+        rows = [
+            " Layer | Resistance (R) | Capacitance (C) | Time Constant (τ)"]
+        rows.append(" " + "-" * (total_width - 1))  # Adjusted for consistency
         for i in range(self.order):
-            row = f"  {i+1:<5} | {self.r[i]:<14.6f} | {self.c[i]:<15.6f} | {tau[i]:<17.6f}"
+            row = f" {i+1:<5} | {self.r[i]:<14.6f} | {self.c[i]:<15.6f} | {tau[i]:<17.6f}"
             rows.append(row)
         return f"{header}\n" + "\n".join(rows)
