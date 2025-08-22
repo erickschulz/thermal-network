@@ -361,15 +361,15 @@ def _run_single_optimization(
         t_data_jnp, z_data_jnp, initial_params, n_layers, config, tau_floor, r_total
     )
 
-    r_values, c_values = _unpack(final_params, n_layers, tau_floor, r_total)
+    r, c = _unpack(final_params, n_layers, tau_floor, r_total)
 
-    if not (jnp.all(jnp.isfinite(r_values)) and jnp.all(jnp.isfinite(c_values))):
+    if not (jnp.all(jnp.isfinite(r)) and jnp.all(jnp.isfinite(c))):
         raise RuntimeError(
             f"Optimization produced invalid parameters (NaN or Inf) for {n_layers} layers."
         )
 
     return FittingResult(
-        network=FosterNetwork(np.asarray(r_values), np.asarray(c_values)),
+        network=FosterNetwork(np.asarray(r), np.asarray(c)),
         n_layers=n_layers,
         final_loss=conv_info['final_loss'],
         optimizer=config.optimizer,

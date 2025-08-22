@@ -34,7 +34,7 @@ A robust way to test the conversions is to perform a round-trip (e.g., Cauer -> 
     from thermal_network.networks import CauerNetwork, FosterNetwork
     from thermal_network.conversions import cauer_to_foster, foster_to_cauer
 
-    original_cauer = CauerNetwork(r_values=[0.1, 0.5, 1.2], c_values=[0.3, 0.8, 2.0])
+    original_cauer = CauerNetwork(r=[0.1, 0.5, 1.2], c=[0.3, 0.8, 2.0])
     ```
 
 2.  **Convert to Foster and back to Cauer**

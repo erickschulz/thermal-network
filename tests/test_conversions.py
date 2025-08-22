@@ -18,7 +18,7 @@ def test_cauer_to_foster_conversion(plot_enabled):
     Tests the conversion from a Cauer network to a Foster network.
     Verifies that the frequency-domain impedance of both networks match.
     """
-    cauer_net = CauerNetwork(r_values=[0.1, 0.2, 0.3], c_values=[0.4, 0.5, 0.6])
+    cauer_net = CauerNetwork(r=[0.1, 0.2, 0.3], c=[0.4, 0.5, 0.6])
     foster_net = cauer_to_foster(cauer_net)
 
     assert isinstance(foster_net, FosterNetwork)
@@ -52,7 +52,7 @@ def test_foster_to_cauer_conversion(plot_enabled):
     Tests the conversion from a Foster network to a Cauer network.
     Verifies that the frequency-domain impedance of both networks match.
     """
-    foster_net = FosterNetwork(r_values=[0.1, 0.2], c_values=[0.3, 0.4])
+    foster_net = FosterNetwork(r=[0.1, 0.2], c=[0.3, 0.4])
     cauer_net = foster_to_cauer(foster_net)
 
     assert isinstance(cauer_net, CauerNetwork)
@@ -90,7 +90,7 @@ def test_round_trip_cauer_to_foster_to_cauer():
     Ensures that converting Cauer -> Foster -> Cauer returns the original network.
     This is a critical test for conversion accuracy.
     """
-    original_cauer = CauerNetwork(r_values=[0.1, 0.5, 1.2], c_values=[0.3, 0.8, 2.0])
+    original_cauer = CauerNetwork(r=[0.1, 0.5, 1.2], c=[0.3, 0.8, 2.0])
     
     intermediate_foster = cauer_to_foster(original_cauer)
     final_cauer = foster_to_cauer(intermediate_foster)
@@ -105,7 +105,7 @@ def test_round_trip_foster_to_cauer_to_foster():
     Ensures that converting Foster -> Cauer -> Foster returns the original network.
     This is a critical test for conversion accuracy.
     """
-    original_foster = FosterNetwork(r_values=[0.2, 0.8, 1.5], c_values=[0.4, 1.0, 3.0])
+    original_foster = FosterNetwork(r=[0.2, 0.8, 1.5], c=[0.4, 1.0, 3.0])
     
     intermediate_cauer = foster_to_cauer(original_foster)
     final_foster = cauer_to_foster(intermediate_cauer)

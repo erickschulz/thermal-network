@@ -82,7 +82,7 @@ from thermal_network.networks import FosterNetwork
 from thermal_network.impedance import foster_impedance_time_domain, foster_impedance_freq_domain
 
 # Define the network and data points
-net = FosterNetwork(r_values=[0.7, 0.3], c_values=[1.0, 10.0])
+net = FosterNetwork(r=[0.7, 0.3], c=[1.0, 10.0])
 time_data = np.logspace(-1, 2, 5)
 freq_data = np.logspace(-1, 2, 5) * 1j  # s = jw
 

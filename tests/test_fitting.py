@@ -25,7 +25,7 @@ def test_fit_foster_network_multi_layer(plot_enabled):
     Asserts the quality of the fit rather than exact parameter values.
     """
     # Define a "true" 2-layer network to generate synthetic data
-    true_network = FosterNetwork(r_values=[0.7, 0.3], c_values=[1.0, 10.0])
+    true_network = FosterNetwork(r=[0.7, 0.3], c=[1.0, 10.0])
 
     # Generate synthetic impedance data from this true network
     time_data = np.logspace(-1, 2, 150)
@@ -76,7 +76,7 @@ def test_fit_optimal_foster_network_comprehensive(plot_enabled):
     """
     # Define a true 3-layer network
     true_network = FosterNetwork(
-        r_values=[0.2, 0.8, 0.5], c_values=[15.0, 1.0, 4.0])
+        r=[0.2, 0.8, 0.5], c=[15.0, 1.0, 4.0])
     time_vec = np.logspace(-1, 2, 200)
 
     # Generate true impedance using the public API

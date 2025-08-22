@@ -16,19 +16,20 @@ The library defines two core data structures for thermal networks, `CauerNetwork
 	</Card>
 </CardGrid>
 
-### `CauerNetwork(r_values, c_values)`
+### `CauerNetwork(r, c)`
 Initializes a Cauer network model.
 
--   **`r_values`**: `list | np.ndarray` - A list or array of resistance values.
--   **`c_values`**: `list | np.ndarray` - A list or array of capacitance values.
+-   **`r`**: `list | np.ndarray` - A list or array of resistance values.
+-   **`c`**: `list | np.ndarray` - A list or array of capacitance values.
 
 Both lists must have the same length, and all values must be positive.
 
-### `FosterNetwork(r_values, c_values)`
+### `FosterNetwork(r, c)`
 Initializes a Foster network model. The RC pairs are automatically sorted by their time constant $\tau = R \cdot C$ to ensure a canonical representation.
 
--   **`r_values`**: `list | np.ndarray` - A list or array of resistance values.
--   **`c_values`**: `list | np.ndarray` - A list or array of capacitance values.
+-   **`r`**: `list | np.ndarray` - A list or array of resistance values.
+-   **`c`**: `list | np.ndarray` - A list or array of capacitance values.
+
 
 Both lists must have the same length, and all values must be positive.
 
@@ -37,11 +38,11 @@ Both lists must have the same length, and all values must be positive.
 from thermal_network.networks import FosterNetwork, CauerNetwork
 
 # Create a 2-layer Foster network
-foster_net = FosterNetwork(r_values=[0.7, 0.3], c_values=[1.0, 10.0])
+foster_net = FosterNetwork(r=[0.7, 0.3], c=[1.0, 10.0])
 print(foster_net)
 # > FosterNetwork(order=2, r=[0.7 0.3], c=[ 1. 10.])
 
 # Create a 3-layer Cauer network
-cauer_net = CauerNetwork(r_values=[0.1, 0.2, 0.3], c_values=[0.4, 0.5, 0.6])
+cauer_net = CauerNetwork(r=[0.1, 0.2, 0.3], c=[0.4, 0.5, 0.6])
 print(cauer_net)
 # > CauerNetwork(order=3, r=[0.1 0.2 0.3], c=[0.4 0.5 0.6])

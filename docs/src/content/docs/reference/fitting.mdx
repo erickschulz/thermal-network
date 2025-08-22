@@ -81,7 +81,7 @@ A data class for configuring the fitting process.
     from thermal_network.impedance import foster_impedance_time_domain
 
     # Define a true 3-layer network
-    true_network = FosterNetwork(r_values=[0.2, 0.8, 0.5], c_values=[15.0, 1.0, 4.0])
+    true_network = FosterNetwork(r=[0.2, 0.8, 0.5], c=[15.0, 1.0, 4.0])
     time_vec = np.logspace(-1, 2, 200)
     true_impedance = foster_impedance_time_domain(true_network, time_vec)
 
