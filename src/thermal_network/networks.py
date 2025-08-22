@@ -9,12 +9,12 @@ by dedicated functions in other modules.
 """
 
 from dataclasses import dataclass
-from typing import Tuple
+from typing import List, Tuple, Union
 
 import numpy as np
 
 
-def _validate_rc_values(r: np.ndarray, c: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+def _validate_rc_values(r: Union[np.ndarray, List[float]], c: Union[np.ndarray, List[float]]) -> Tuple[np.ndarray, np.ndarray]:
     """
     Validates and converts resistance and capacitance value inputs.
 
@@ -60,7 +60,7 @@ class CauerNetwork:
     c: np.ndarray
     order: int
 
-    def __init__(self, r: np.ndarray, c: np.ndarray):
+    def __init__(self, r: Union[np.ndarray, List[float]], c: Union[np.ndarray, List[float]]):
         """
         Initializes the CauerNetwork.
 
@@ -111,7 +111,7 @@ class FosterNetwork:
     c: np.ndarray
     order: int
 
-    def __init__(self, r: np.ndarray, c: np.ndarray):
+    def __init__(self, r: Union[np.ndarray, List[float]], c: Union[np.ndarray, List[float]]):
         """
         Initializes the FosterNetwork.
 

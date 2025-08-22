@@ -2,7 +2,6 @@ from thermal_network.impedance import foster_impedance_time_domain
 from thermal_network.networks import FosterNetwork
 from thermal_network.fitting import fit_foster_network, fit_optimal_foster_network, OptimizationConfig
 from jax import random
-import jax.numpy as jnp
 import pathlib
 import matplotlib.pyplot as plt
 import numpy as np

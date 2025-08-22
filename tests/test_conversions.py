@@ -1,5 +1,5 @@
 import numpy as np
-import pytest
+
 import matplotlib
 matplotlib.use('Agg')  # Use a non-interactive backend for tests
 import matplotlib.pyplot as plt
@@ -26,8 +26,8 @@ def test_cauer_to_foster_conversion(plot_enabled):
     
     # Verify that the impedance spectra match, which is the true test of equivalence.
     s = np.logspace(-2, 2, 200) * 1j
-    z_cauer = cauer_impedance_freq_domain(cauer_net, s)
-    z_foster = foster_impedance_freq_domain(foster_net, s)
+    z_cauer = np.asarray(cauer_impedance_freq_domain(cauer_net, s), dtype=complex)
+    z_foster = np.asarray(foster_impedance_freq_domain(foster_net, s), dtype=complex)
     assert np.allclose(z_cauer, z_foster, atol=1e-6)
 
     if plot_enabled:
@@ -64,8 +64,8 @@ def test_foster_to_cauer_conversion(plot_enabled):
 
     # Verify that the impedance spectra match
     s = np.logspace(-2, 2, 200) * 1j
-    z_foster = foster_impedance_freq_domain(foster_net, s)
-    z_cauer = cauer_impedance_freq_domain(cauer_net, s)
+    z_foster = np.asarray(foster_impedance_freq_domain(foster_net, s), dtype=complex)
+    z_cauer = np.asarray(cauer_impedance_freq_domain(cauer_net, s), dtype=complex)
     assert np.allclose(z_foster, z_cauer, atol=1e-6)
 
     if plot_enabled:
