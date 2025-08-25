@@ -16,7 +16,7 @@ First, we need to import the necessary packages and load the data. The `thermal-
     ```python
     import numpy as np
     from openpyxl import load_workbook, workbook
-    from thermal_network.fitting import fit_optimal_foster_network
+    from thermal_network.fitting import fit_optimal_foster_network, trim_steady_state
     from thermal_network.conversions import foster_to_cauer
 
     # Load data from the spreadsheet
@@ -32,20 +32,32 @@ First, we need to import the necessary packages and load the data. The `thermal-
     impedance_data = np.array([row[0].value for row in cells])
     ```
 
-2.  **Fit a model to the data**
+2.  **Trim steady-state data points**
+
+    The raw data may contain many data points at the end of the curve that are already in steady-state. These points can be removed to avoid overweighting steady-state in the loss
+    function of the optimization algorithm (steady-state is enforced exactly by reparametrization).
+
+    ```python
+    time_data, impedance_data = trim_steady_state(
+        time_data=time_data,
+        impedance_data=impedance_data
+    )
+    ```
+
+3.  **Fit a model to the data**
 
     We specify that the optimal model can have at most 10 layers
 
     ```python
     model = fit_optimal_foster_network(
-        time_data=time_data[:73],
-        impedance_data=impedance_data[:73],
+        time_data=time_data,
+        impedance_data=impedance_data,
         max_layers=10,
         tau_floor= 1e-3
     )
     ```
 
-3.  **Convert the resulting Foster network to the Cauer topology**
+4.  **Convert the resulting Foster network to the Cauer topology**
 
     ```python
     best_model = model.best_model

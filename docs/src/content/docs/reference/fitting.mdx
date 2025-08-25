@@ -54,13 +54,35 @@ Fits models with 1 to `max_layers` and selects the best one using a model select
 -   **`tau_floor`**: `float`, optional - If set, guarantees the smallest time constant will be greater than this value. If `None`, it's fully free.
 -   **Returns**: `ModelSelectionResult` - The best model found, including its selection criteria scores.
 
+### `trim_steady_state()`
+
+```python
+trim_steady_state(
+  time_data,
+  impedance_data,
+  min_points=5,
+  p_value_tol=0.1,
+  noise_std_multiplier=2.0
+)
+```
+
+Detects the steady-state region at the end of thermal impedance data and retains only the first point of that region.
+
+-   **`time_data`**: `array-like` - Array of time points.
+-   **`impedance_data`**: `array-like` - Array of corresponding thermal impedance values.
+-   **`min_points`**: `int` - Minimum number of points required for a steady-state region.
+-   **`p_value_tol`**: `float` - p-value threshold for the null hypothesis "slope = 0" (set higher for stricter flatness).
+-   **`noise_std_multiplier`**: `float` - Multiplier for the noise standard deviation used as residual tolerance for the linear regression 
+(set lower for stricter fit).
+-   **Returns**: `tuple` - A tuple containing the trimmed time and impedance arrays.
+
 ### `OptimizationConfig`
 A data class for configuring the fitting process.
 
 -   **`optimizer`**: `str` - `'lbfgs'` or `'adam'`.
 -   **`n_steps`**: `int` - Maximum number of optimization steps. Defaults to `100000` for Adam and `20000` for L-BFGS.
 -   **`learning_rate`**: `float` - Learning rate for the Adam optimizer.
--   **`loss_tol`**: `float`- Convergence tolerance for the change in loss value.
+-   **`loss_tol`**: `float` - Convergence tolerance for the change in loss value.
 -   **`gradient_tol`**: `float` - Convergence tolerance for the gradient norm.
 -   **`params_rtol`**: `float` - Relative tolerance for parameter change.
 -   **`params_atol`**: `float` - Absolute tolerance for parameter change.

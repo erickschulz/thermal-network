@@ -15,7 +15,9 @@ Key Features:
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, List, Union
+
+from scipy.stats import linregress
 
 import jax
 import jax.numpy as jnp
@@ -31,6 +33,7 @@ __all__ = [
     'OptimizationConfig',
     'fit_foster_network',
     'fit_optimal_foster_network',
+    'trim_steady_state'
 ]
 
 # Enable 64-bit precision in JAX for higher accuracy.
@@ -176,7 +179,6 @@ def _unpack(
 
 def _create_initial_guess(
     time_data: jnp.ndarray,
-    impedance_data: jnp.ndarray,
     n_layers: int,
     tau_floor: Optional[float] = None
 ) -> jnp.ndarray:
@@ -343,8 +345,7 @@ def _run_single_optimization(
     z_data_jnp = jnp.asarray(z_data)
 
     # Initial guess in reparameterized space
-    base_init = _create_initial_guess(
-        t_data_jnp, z_data_jnp, n_layers, tau_floor)
+    base_init = _create_initial_guess(t_data_jnp, n_layers, tau_floor)
 
     if config.randomize_guess_strength > 0.:
         noise = config.randomize_guess_strength * jax.random.normal(
@@ -530,3 +531,96 @@ def fit_optimal_foster_network(
         selection_criteria=best_criteria,
         evaluated_models=evaluated_models
     )
+
+
+def trim_steady_state(
+    time_data: Union[List, np.ndarray],
+    impedance_data: Union[List, np.ndarray],
+    min_points: int = 5,
+    p_value_tol: float = 0.1,
+    noise_std_multiplier: float = 2.0
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Detects the steady-state region at the end of thermal impedance data and retains only
+    the first point of that region.
+
+    This function should be used to prevent overweighting steady-state during fitting (steady-state
+    is enforced exactly by reparametrization).
+
+    Args:
+        time_data: Array or list of time points (must be strictly increasing).
+        impedance_data: Array or list of thermal impedance values.
+        min_points: Minimum number of points required for a steady-state region.
+        p_value_tol: p-value threshold for accepting slope == 0 (higher for stricter flatness).
+        noise_std_multiplier: Multiplier for the noise std to set the residual tolerance (lower for stricter fit).
+
+    Returns:
+        Tuple containing:
+        - trimmed_time: Trimmed time array with all but the first steady-state point removed.
+        - trimmed_impedance: Trimmed impedance array corresponding to trimmed_time.
+
+    Raises:
+        ValueError: Inputs are invalid
+    """
+    time_data = np.asarray(time_data, dtype=np.float64)
+    impedance_data = np.asarray(impedance_data, dtype=np.float64)
+
+    time_data, impedance_data = _validate_inputs(time_data, impedance_data)
+
+    n = len(time_data)
+    if n < min_points + 1:
+        logger.info(
+            "Data too short for steady-state trimming. Returning original data.")
+        return time_data, impedance_data
+
+    total_rise = impedance_data[-1] - impedance_data[0]
+    if total_rise <= 0:
+        raise ValueError(
+            "Impedance data must have positive rise (final value > initial value).")
+
+    # Estimate noise from the end to avoid transient bias
+    end_diffs_len = max(3, min(n - 1, n // 5))
+    diffs = np.diff(impedance_data[-end_diffs_len - 1:])
+    # Estimate std by trimming outliers (10th to 90th percentiles)
+    if len(diffs) > 5:  # only trim if enough points
+        lower, upper = np.percentile(diffs, [10, 90])
+        trimmed_diffs = diffs[(diffs >= lower) & (diffs <= upper)]
+        noise_std = np.std(trimmed_diffs) if len(
+            trimmed_diffs) > 0 else np.std(diffs)
+    else:
+        noise_std = np.std(diffs)
+    if noise_std == 0:
+        noise_std = 1e-10
+    residual_tol = noise_std_multiplier * noise_std
+
+    # Search for the longest steady segment at the end
+    best_start = n
+    for start in range(n - min_points, -1, -1):
+        seg_time = time_data[start:]
+        seg_impedance = impedance_data[start:]
+        if len(seg_time) < 3:
+            continue
+
+        linreg_result = linregress(seg_time, seg_impedance)
+        slope, intercept, _, p_value, _ = map(float, linreg_result)
+
+        predicted = slope * seg_time + intercept
+        residual_std = np.std(seg_impedance - predicted)
+
+        if p_value > p_value_tol and residual_std <= residual_tol:
+            if start < best_start:
+                best_start = start
+
+    if best_start == n:
+        logger.info("No steady-state region found. Returning original data.")
+        return time_data, impedance_data
+
+    # All data points steady-state start, plus the first steady-state point
+    trimmed_time = np.concatenate(
+        (time_data[:best_start], time_data[best_start:best_start+1]))
+    trimmed_impedance = np.concatenate(
+        (impedance_data[:best_start], impedance_data[best_start:best_start+1]))
+
+    logger.info(
+        f"Trimmed {n - len(trimmed_time)} steady-state points, keeping first at t={trimmed_time[-1]:.6f}.")
+    return trimmed_time, trimmed_impedance

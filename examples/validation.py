@@ -20,10 +20,25 @@ time_data = np.array([row[0].value for row in cells])
 cells = worksheet["E6:E103"]
 impedance_data = np.array([row[0].value for row in cells])
 
+
+# trim steady-state points
+trimmed_time, trimmed_impedance = tn.trim_steady_state(
+    time_data=time_data,
+    impedance_data=impedance_data,
+    min_points=5,
+    p_value_tol=0.1,
+    noise_std_multiplier=2.0
+)
+
+print(f"\nOriginal data: {len(time_data)} points")
+print(f"Trimmed data: {len(trimmed_time)} points")
+print(f"Removed {len(time_data) - len(trimmed_time)} steady-state points")
+print(f"Last impedance value {trimmed_impedance[-1]}.\n")
+
 # fit thermal model to impedance data
 model_selection_result = tn.fit_optimal_foster_network(
-    time_data=time_data[:73],
-    impedance_data=impedance_data[:73],
+    time_data=trimmed_time,
+    impedance_data=trimmed_impedance,
     max_layers=10,
     # tau_floor=1e-3  #enfore a 1ms stability constraint
 )
